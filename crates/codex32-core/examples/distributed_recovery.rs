@@ -63,6 +63,32 @@ fn adaptive_contribution_demo() -> Value {
         "conclusion": "An adaptive last contributor can force a chosen seed; bind every contribution before any reveal."
     })
 }
+fn static_share_exposure_demo(a: &Codex32, c: &Codex32, d: &Codex32) -> Value {
+    let replacement =
+        derive_share(&[c.clone(), d.clone()], ShareIndex::from_char('e').unwrap()).unwrap();
+    let original = recover(&[a.clone(), d.clone()])
+        .unwrap()
+        .secret_seed()
+        .unwrap();
+    let after_replacement = recover(&[a.clone(), d.clone()])
+        .unwrap()
+        .secret_seed()
+        .unwrap();
+    let replacement_pair = recover(&[c.clone(), replacement])
+        .unwrap()
+        .secret_seed()
+        .unwrap();
+    json!({
+        "copied_share": "a",
+        "other_old_share": "d",
+        "replacement_share": "e",
+        "old_pair_still_recovers": original.expose_secret() == after_replacement.expose_secret(),
+        "replacement_pair_recovers_same_seed": original.expose_secret()
+            == replacement_pair.expose_secret(),
+        "conclusion": "Deriving a replacement share cannot revoke a copied old quorum; move funds to a fresh seed."
+    })
+}
+
 
 fn main() {
     const K: u8 = 2;
@@ -194,6 +220,7 @@ fn main() {
         ],
         "deployment_invariant": "The company receives only its own contribution; both user shares and the recovered seed remain inside or are displayed by dedicated hardware.",
         "adaptive_contribution_demo": adaptive_contribution_demo(),
+        "static_share_exposure_demo": static_share_exposure_demo(&a, &c, &d),
         "commitment_note": "Production commitments also bind a fresh ceremony nonce, protocol version, device identity, transcript role, and expiry."
     });
 
