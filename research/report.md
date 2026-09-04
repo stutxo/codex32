@@ -130,6 +130,12 @@ This support gap is the product's gating dependency. A phone- or laptop-only sub
 | Current hardware survey | No verified released device performs native threshold BIP93 recovery | Hardware partnership is a launch blocker |
 | Nitro review | Strong parent-root isolation and attestation, but AWS/KMS/image/rollback trust and a demonstrated shared-LLC channel remain | Do not make Nitro an MVP dependency |
 | Bitcoin beacon analysis | Future block data is public, delay-prone, and miner-biasable; it adds no secret entropy when an honest private source exists | Keep Bitcoin out of seed generation and backup storage |
+| Executable creation state machine | Fixed profile binds protocol version, nonce, account, attested endpoint, expiry, roles, indices, and both commitments; wrong order, tamper, changed context, malformed metadata, expiry, and in-session replay fail closed | Use its digest as reviewed HPKE/AEAD associated data; persistent replay storage remains external |
+| Exhaustive honest-share field mapping | Across all 465 pairs of non-secret indices, both honest positions, and all 32 field values, all 29,760 cases map bijectively onto every possible secret symbol | Experiment supports the one-honest-uniform-contributor argument for the recommended 2-of-3 profile |
+| Checksum fault injection | All 5,600 one-character alternatives across official 13- and 15-character checksum strings were rejected | Strong accidental-error detection is executable, while malicious authentication still requires wallet identity |
+| Canonical BIP86 wallet identity | Domain-separated SHA-256 binds chain genesis hash and both canonical public descriptors; all three recovery paths and state reload produce the same digest | Recovery can authenticate the full wallet policy rather than a 20-bit identifier or 32-bit fingerprint |
+| Static-share replacement experiment | A newly derived replacement recovers the same seed, but the copied old quorum remains valid | Suspected exposure requires a fresh-seed sweep, not in-place share replacement |
+| Recovery cut-set enumeration | Recommended 2-of-3 survives every one-factor loss and has one user-only exit; company plus one user share is a quorum. A 3-of-5 removes that collusion pair but needs two user factors with company | Keep 2-of-3 as consumer default; reserve 3-of-5 for a separately validated high-value tier |
 
 The executable evidence is [`distributed_recovery.rs`](../crates/codex32-core/examples/distributed_recovery.rs). The fixed public fixture uses two independent ChaCha20 streams only for reproducibility, not production randomness. The independent verifier reparses every string, recomputes the derived share, independently recovers every threshold combination, and recomputes the BIP32 xprv. The benchmark observed **three of three combinations**, one verified derived share, identical seeds, and identical xprvs.
 
@@ -500,9 +506,12 @@ Assets are S, shares A/C/D, active signer state, transient recovery sessions, co
 ### Files
 
 - [`crates/codex32-core/src/sharing.rs`](../crates/codex32-core/src/sharing.rs): `generate_share` creates one independently random, compatible BIP93 initial share from a caller-supplied cryptographic RNG.
-- [`crates/codex32-core/examples/distributed_recovery.rs`](../crates/codex32-core/examples/distributed_recovery.rs): deterministic public end-to-end evidence for hardware contribution A, company contribution D, derived user share C, commitments, component possession, all pair recoveries, BIP32 xprv mapping, and the adaptive-last-mover demonstration.
+- [`crates/codex32-core/examples/distributed_recovery.rs`](../crates/codex32-core/examples/distributed_recovery.rs): deterministic public end-to-end evidence for hardware contribution A, company contribution D, derived user share C, commitments, component possession, all pair recoveries, BIP32 xprv mapping, adaptive-last-mover forcing, and static-share non-revocability.
 - [`crates/codex32-wallet/examples/autoresearch_verify.rs`](../crates/codex32-wallet/examples/autoresearch_verify.rs): independent evidence verifier.
 - [`research/architecture.json`](architecture.json): machine-checkable custody and recovery model.
+- [`crates/codex32-wallet/src/ceremony.rs`](../crates/codex32-wallet/src/ceremony.rs): fixed-profile transcript state machine and canonical delivery associated data. Transport encryption is deliberately delegated to a reviewed HPKE/AEAD implementation.
+- [`crates/codex32-wallet/tests/ceremony.rs`](../crates/codex32-wallet/tests/ceremony.rs): complete ceremony, company-loss exit, cross-session binding, malformed metadata, tamper, expiry, wrong-order, and replay evidence.
+- [`research/cutset_analysis.py`](cutset_analysis.py): executable compromise and availability comparison for five recovery topologies.
 
 ### Reproduce
 
@@ -511,7 +520,12 @@ cargo run --locked --offline --quiet \
   -p codex32-core --example distributed_recovery
 ```
 
-The command emits JSON containing three checksummed shares, two independent contribution payloads/commitments, a component trace, the three 2-of-3 recoveries, and public BIP32 xprvs. Verify the whole research bundle with:
+```bash
+cargo test --locked --offline -p codex32-wallet --test ceremony
+python3 research/cutset_analysis.py
+```
+
+The distributed-generation command emits JSON containing three checksummed shares, two independent contribution payloads/commitments, a component trace, the three 2-of-3 recoveries, public BIP32 xprvs, adaptive-last-mover evidence, and a static-share replacement experiment. The ceremony test exercises the fixed transcript state machine. The cut-set analyzer enumerates every threshold quorum for five candidate policies. Verify the whole research bundle with:
 
 ```bash
 ./autoresearch.sh
@@ -531,19 +545,21 @@ The prototype also records commit events before reveal events and rejects a trac
 
 ### What it proves and does not prove
 
-It proves that this repository can construct BIP93 initial shares independently, derive a redundant share, and recover one identical direct BIP32 seed from every pair. It provides a concrete data-flow model and reproduces adaptive contribution forcing with official public data.
+It proves that this repository can construct BIP93 initial shares independently, derive a redundant share, and recover one identical direct BIP32 seed from every pair. It provides a concrete data-flow model, reproduces adaptive contribution forcing with official public data, and proves that deriving a replacement share cannot revoke an old copied quorum. The wallet implementation now uses the selected BIP86 policy and computes a 256-bit public identity over the chain and both canonical descriptors; A+C, A+D, and C+D all reproduce that identity.
 
-It does not prove entropy quality, constant-time behavior, secure deletion, device attestation, channel security, physical security, company operations, TEE behavior, or production fitness. ChaCha seeds and every emitted secret are fixed public test data. Never fund them.
+The transcript state machine makes commit-before-reveal ordering and context binding executable. It rejects altered nonce/account/endpoint/expiry, mismatched role/index/identifier/threshold/length, wrong associated data, expired sessions, wrong ordering, and replay within a live ceremony object. It intentionally does not implement encryption. Production must supply reviewed HPKE/AEAD and durable single-use nonce storage.
+
+It does not prove entropy quality, constant-time behavior, secure deletion, hardware attestation, transport-cryptography security, durable cross-restart replay prevention, physical security, company operations, TEE behavior, or production fitness. Deterministic generators and every emitted secret are fixed public test data. Never fund them.
 
 ## Remaining research questions
 
 1. Will BIP93's Draft text, checksum, long-form rules, or wallet guidance change before hardware deployment?
 2. Which hardware vendor will commit to native generation, threshold import, interpolation, direct BIP32 mapping, secure scan/display, and long-term recovery firmware?
 3. Can hardware attestation bind exact firmware and an ephemeral recovery key without a stable identifier that harms privacy?
-4. What canonical external+internal descriptor encoding and strong wallet-identity digest should every implementation display and archive?
+4. Can a second implementation reproduce the canonical identity definition—SHA-256 domain `codex32/wallet-identity/v1`, chain genesis hash, length-prefixed external descriptor, then length-prefixed internal descriptor—and the fixed regtest vector `adb35db5873ab9d3ba0c4b4b0a8e78b276b4a85fb48e983e6ba4a624771eb0bd`?
 5. Should the first product use 256-bit/74-character shares as recommended, or does human testing justify a fixed 128-bit/48-character profile?
 6. Can real users accurately create, scan back, geographically separate, and later recover 74-character shares? Measure completion, correction, abandonment, and phishing susceptibility.
-7. Does one-sided commit/reveal need a formally specified state machine, transcript format, key confirmation, and fairness proof beyond conventional binding/hiding arguments?
+7. Which reviewed HPKE/AEAD profile, hardware attestation format, key-confirmation step, and durable replay store should carry the state machine's transcript-bound company share? The implemented state transitions do not prove channel cryptography or fairness.
 8. Which entropy-source health tests and independent laboratory evidence are required for the hardware and service contributors?
 9. Can the service contribution and release implementation be reproduced by a second independent implementation and matched against official BIP93 vectors?
 10. What account-recovery policy resists SIM swap, passkey loss, insider override, coercion, and support-channel social engineering without blocking heirs?
@@ -619,6 +635,7 @@ Do not ship a real-money MVP unless all are true:
 
 - At least one hardware partner reconstructs S internally and commits to long-term signed recovery firmware; two independent implementations are the production goal.
 - Official BIP93 vectors, this repository's cross-checks, every 2-of-3 pair, malformed inputs, padding lengths, and BIP32 outputs pass independently.
+- Every implementation reproduces the canonical descriptor identity and public interoperability vector before it may compare recovery results.
 - Hardware, distributed-generation transcript, service release path, mobile relay, and entropy design receive independent security review.
 - No instrumented end-to-end run places A, C, D plaintext, or S in phone/host/server logs or memory outside the specified component boundary.
 - Users can complete creation and both recovery paths from the stored physical artifacts, with the company fully absent in the exit drill.
