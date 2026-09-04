@@ -1,6 +1,6 @@
 # Architecture and security questions
 
-Proposed direction; no implementation has been selected or audited. The goal is a complete wallet backed by shared Rust libraries; see [the library plan](rust-library.md) for component boundaries and the first build milestone.
+The first Rust milestone is implemented: `codex32-core`, `codex32-wallet`, and `codex32-wasm`. It is experimental and has not been audited. The goal is a complete wallet backed by these libraries; see [validation](validation.md) for completed checks and [the library plan](rust-library.md) for the broader direction.
 
 ## Separate backup logic from platform secret handling
 
@@ -13,6 +13,10 @@ The [original guide](https://secretcodex32.com/docs/2023-03-07--color.pdf) expli
 Keep parsing, checksum validation, share operations, and seed decoding separate from wallet transaction logic and the interface. Evaluate the [Rust reference implementation](https://github.com/apoelstra/rust-codex32) and the current [bech32 primitives](https://docs.rs/bech32/latest/bech32/) for actual coverage, dependencies, licensing, and review history. “Reference implementation” is not an audit claim; its README describes incomplete and rough areas. WASM and native bindings should expose the same tested Rust operations.
 
 Keep signing material inside the Rust wallet object where practical, with explicit import and backup export operations. Displaying or entering backup material necessarily crosses a UI boundary. Rust and WASM cannot make a compromised host interface trustworthy or guarantee that all copies of displayed secrets are erased.
+
+The current backup types redact Debug and zeroize owned payload/seed buffers on drop. Errors do not echo supplied secret text. This is best-effort cleanup, not a guarantee about stack temporaries, compiler copies, BDK/secp256k1 internals, or JavaScript strings. The entire implementation has not been established to run in constant time. Native encrypted key storage and mobile bindings remain unimplemented.
+
+The prototype persists only public BDK state and checks the expected seed-derived descriptors and network when reloading. A production adapter must additionally handle atomic writes, storage failures, rollback, locking, encryption, and rescan policy. Payment proposals and signing are separate calls so the future interface can require review of the exact destination, amount, and fee before signing.
 
 ## Recovery compatibility
 

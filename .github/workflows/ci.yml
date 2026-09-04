@@ -1,0 +1,30 @@
+name: Rust and WASM
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install pinned toolchain
+        run: rustup show
+      - name: Format and lint
+        run: |
+          cargo fmt --all --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Native tests
+        run: cargo test --locked --workspace
+      - name: Reproduce public fixtures
+        run: |
+          python3 scripts/generate-fixtures.py
+          git diff --exit-code -- tests/fixtures/bip93.json
+      - name: Install matching WASM runner
+        run: cargo install wasm-bindgen-cli --version 0.2.127 --locked
+      - name: WASM tests and JavaScript ABI
+        run: bash scripts/test-wasm.sh

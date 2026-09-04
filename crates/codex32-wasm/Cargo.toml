@@ -1,0 +1,22 @@
+[package]
+name = "codex32-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+codex32-core = { path = "../codex32-core" }
+codex32-wallet = { path = "../codex32-wallet" }
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+wasm-bindgen-test.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

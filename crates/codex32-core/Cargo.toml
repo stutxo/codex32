@@ -1,0 +1,21 @@
+[package]
+name = "codex32-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Offline BIP 93 backup encoding, validation, and recovery"
+
+[dependencies]
+bech32.workspace = true
+rand_core.workspace = true
+zeroize.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+rand_chacha = "0.9"
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 # Rust library and wallet plan
 
-Recommendation recorded 2026-09-04. This is an implementation proposal, not a claim that these crates or applications already exist.
+Recommendation recorded 2026-09-04. The first build milestone is now implemented in the three Rust crates; [validation.md](validation.md) records the evidence. Native mobile bindings, encrypted signing-key storage, and an end-user application remain future work. The component names below are local crates, not published packages.
 
 ## Why start with a library?
 
@@ -28,7 +28,7 @@ Arrows show which component is used by the next layer. Platform adapters supply 
 | `codex32-wallet` | Wallet lifecycle, descriptor policy, receive addresses, transaction construction/signing, recovery identity checks | UI, platform storage and network transport |
 | Thin bindings | Convert supported arguments, results, and errors between languages | Cryptographic rules and wallet policy |
 
-These are local working names. No package publication or registry name availability is assumed.
+No package publication or registry name availability is assumed.
 
 ## Reuse assessment
 

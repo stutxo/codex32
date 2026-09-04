@@ -1,0 +1,2 @@
+# Preserve the pinned upstream specification byte for byte, including whitespace.
+tests/fixtures/bip-0093.mediawiki -whitespace
