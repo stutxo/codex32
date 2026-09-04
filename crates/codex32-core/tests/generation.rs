@@ -1,4 +1,6 @@
-use codex32_core::{Codex32, Error, Seed, ShareIndex, generate, recover, split};
+use codex32_core::{
+    Codex32, Error, Seed, ShareIndex, derive_share, generate, generate_share, recover, split,
+};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{SeedableRng, TryCryptoRng, TryRngCore};
 
@@ -37,6 +39,41 @@ fn fresh_generation_works_and_uses_new_randomness() {
         32
     );
 }
+#[test]
+fn independent_initial_shares_define_every_recovery_share() {
+    let identifier = "dkg2".parse().unwrap();
+    let mut hardware_rng = ChaCha20Rng::from_seed([17; 32]);
+    let mut service_rng = ChaCha20Rng::from_seed([29; 32]);
+    let a = generate_share(
+        32,
+        identifier,
+        2,
+        ShareIndex::from_char('a').unwrap(),
+        &mut hardware_rng,
+    )
+    .unwrap();
+    let c = generate_share(
+        32,
+        identifier,
+        2,
+        ShareIndex::from_char('c').unwrap(),
+        &mut service_rng,
+    )
+    .unwrap();
+    let d = derive_share(&[a.clone(), c.clone()], ShareIndex::from_char('d').unwrap()).unwrap();
+
+    let expected = recover(&[a.clone(), c.clone()])
+        .unwrap()
+        .secret_seed()
+        .unwrap();
+    for pair in [[a.clone(), d.clone()], [c, d]] {
+        assert_eq!(
+            recover(&pair).unwrap().secret_seed().unwrap().expose_secret(),
+            expected.expose_secret()
+        );
+    }
+}
+
 
 #[derive(Debug)]
 struct BrokenRng;
@@ -64,6 +101,17 @@ fn randomness_failure_and_invalid_parameters_fail_closed() {
     );
     assert_eq!(
         generate(32, id, 2, 3, &mut BrokenRng).unwrap_err(),
+        Error::Randomness
+    );
+    assert_eq!(
+        generate_share(
+            32,
+            id,
+            2,
+            ShareIndex::from_char('a').unwrap(),
+            &mut BrokenRng
+        )
+        .unwrap_err(),
         Error::Randomness
     );
     for k in [0, 1, 10, 255] {

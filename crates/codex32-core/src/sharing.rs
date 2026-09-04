@@ -100,6 +100,42 @@ pub fn derive_share(shares: &[Codex32], index: ShareIndex) -> Result<Codex32, Er
     }
     Ok(interpolate(shares, index))
 }
+/// Generate one independently random initial share for BIP 93's fresh-secret
+/// construction. Exactly `k` such shares with compatible metadata and distinct
+/// indices define a uniformly random seed; contributors must commit before
+/// revealing if any participant could otherwise choose its share adaptively.
+pub fn generate_share<R: TryCryptoRng + ?Sized>(
+    seed_bytes: usize,
+    identifier: Identifier,
+    k: u8,
+    index: ShareIndex,
+    rng: &mut R,
+) -> Result<Codex32, Error> {
+    check_seed_len(seed_bytes)?;
+    threshold(k)?;
+    if k == 0 {
+        return Err(Error::Threshold);
+    }
+    if index.is_secret() {
+        return Err(Error::ExpectedShare);
+    }
+    let mut payload = Zeroizing::new(vec![0; (seed_bytes * 8).div_ceil(5)]);
+    rng.try_fill_bytes(&mut payload)
+        .map_err(|_| Error::Randomness)?;
+    for symbol in payload.iter_mut() {
+        *symbol &= 31;
+    }
+    Ok(Codex32 {
+        metadata: Metadata {
+            threshold: k,
+            identifier,
+            index,
+            seed_bytes,
+        },
+        payload,
+    })
+}
+
 
 fn check_backup(k: u8, count: usize) -> Result<(), Error> {
     threshold(k)?;

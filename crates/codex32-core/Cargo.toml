@@ -16,6 +16,7 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rand_chacha = "0.9"
+bdk_wallet.workspace = true
 
 [lints]
 workspace = true
