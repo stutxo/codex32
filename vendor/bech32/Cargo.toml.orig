@@ -1,0 +1,25 @@
+[package]
+name = "bech32"
+version = "0.12.0"
+authors = ["Clark Moody", "Andrew Poelstra", "Tobin Harding"]
+repository = "https://github.com/rust-bitcoin/rust-bech32"
+documentation = "https://docs.rs/bech32/"
+description = "Encodes and decodes the Bech32 format and implements the bech32 and bech32m checksums"
+readme = "README.md"
+keywords = ["base32", "encoding", "bech32", "bitcoin", "cryptocurrency"]
+categories = ["encoding", "cryptography::cryptocurrencies"]
+license = "MIT"
+edition = "2018"
+rust-version = "1.56.1"
+
+[package.metadata.rbmt.toolchains]
+nightly = "nightly-2026-06-05"
+stable = "stable"
+
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []
+
+[lints.rust]
+unexpected_cfgs = { level = "deny", check-cfg = [ 'cfg(bench)', 'cfg(kani)' ] }

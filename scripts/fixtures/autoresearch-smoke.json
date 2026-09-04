@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "threshold": 2,
+  "identifier": "name",
+  "independent_indices": ["a", "c"],
+  "shares": [
+    {
+      "index": "a",
+      "origin": "independent",
+      "codex32": "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+    },
+    {
+      "index": "c",
+      "origin": "independent",
+      "codex32": "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN"
+    },
+    {
+      "index": "d",
+      "origin": "derived",
+      "codex32": "MS12NAMEDLL4F8JLH4E5VDVULDLFXU2JHDNLSM97XVENRXEG"
+    }
+  ],
+  "recoveries": [
+    {
+      "indices": ["a", "c"],
+      "seed_hex": "d1808e096b35b209ca12132b264662a5",
+      "xprv": "xprv9s21ZrQH143K2NkobdHxXeyFDqE44nJYvzLFtsriatJNWMNKznGoGgW5UMTL4fyWtajnMYb5gEc2CgaKhmsKeskoi9eTimpRv2N11THhPTU"
+    },
+    {
+      "indices": ["a", "d"],
+      "seed_hex": "d1808e096b35b209ca12132b264662a5",
+      "xprv": "xprv9s21ZrQH143K2NkobdHxXeyFDqE44nJYvzLFtsriatJNWMNKznGoGgW5UMTL4fyWtajnMYb5gEc2CgaKhmsKeskoi9eTimpRv2N11THhPTU"
+    },
+    {
+      "indices": ["c", "d"],
+      "seed_hex": "d1808e096b35b209ca12132b264662a5",
+      "xprv": "xprv9s21ZrQH143K2NkobdHxXeyFDqE44nJYvzLFtsriatJNWMNKznGoGgW5UMTL4fyWtajnMYb5gEc2CgaKhmsKeskoi9eTimpRv2N11THhPTU"
+    }
+  ]
+}
