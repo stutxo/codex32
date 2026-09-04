@@ -37,6 +37,33 @@ fn recovery(indices: [char; 2], shares: [&Codex32; 2]) -> Value {
         "xprv": xprv.to_string()
     })
 }
+fn adaptive_contribution_demo() -> Value {
+    // BIP 93 test vector 2 makes the attack reproducible: after seeing A and
+    // choosing a target secret S, a last mover can solve for contribution C.
+    let observed: Codex32 = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+        .parse()
+        .unwrap();
+    let target: Codex32 = "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW"
+        .parse()
+        .unwrap();
+    let published_last: Codex32 = "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN"
+        .parse()
+        .unwrap();
+    let forged_last =
+        derive_share(&[observed.clone(), target], published_last.metadata().index).unwrap();
+    let recovered = recover(&[observed, forged_last.clone()]).unwrap();
+    let seed = recovered.secret_seed().unwrap();
+    json!({
+        "observed_index": "a",
+        "chosen_secret_index": "s",
+        "forged_index": "c",
+        "forged_share_matches_bip93_vector": forged_last.export().as_str()
+            .eq_ignore_ascii_case(published_last.export().as_str()),
+        "forced_seed_hex": hex(seed.expose_secret()),
+        "conclusion": "An adaptive last contributor can force a chosen seed; bind every contribution before any reveal."
+    })
+}
+
 
 fn main() {
     const K: u8 = 2;
@@ -167,6 +194,7 @@ fn main() {
             recovery(['c', 'd'], [&c, &d])
         ],
         "deployment_invariant": "The company receives only its own contribution; both user shares and the recovered seed remain inside or are displayed by dedicated hardware.",
+        "adaptive_contribution_demo": adaptive_contribution_demo(),
         "commitment_note": "Production commitments also bind a fresh ceremony nonce, protocol version, device identity, transcript role, and expiry."
     });
 
