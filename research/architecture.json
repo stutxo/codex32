@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "codex32": {
+    "threshold": 2,
+    "shares": [
+      {
+        "id": "user_home",
+        "index": "a",
+        "holders": ["home_backup"]
+      },
+      {
+        "id": "user_exit",
+        "index": "c",
+        "holders": ["remote_backup"]
+      },
+      {
+        "id": "company_recovery",
+        "index": "d",
+        "holders": ["company_service"]
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "hardware_wallet",
+      "owner": "user",
+      "class": "dedicated_hardware",
+      "stores": ["seed"],
+      "roles": ["normal_signer", "initial_ceremony"]
+    },
+    {
+      "id": "replacement_wallet",
+      "owner": "user",
+      "class": "dedicated_hardware",
+      "stores": [],
+      "roles": ["reconstruction_target"]
+    },
+    {
+      "id": "home_backup",
+      "owner": "user",
+      "class": "offline_physical",
+      "stores": ["share:user_home"],
+      "roles": ["primary_recovery_factor"]
+    },
+    {
+      "id": "remote_backup",
+      "owner": "user",
+      "class": "offline_physical",
+      "stores": ["share:user_exit"],
+      "roles": ["company_independent_exit_factor"]
+    },
+    {
+      "id": "company_service",
+      "owner": "company",
+      "class": "company_server",
+      "stores": ["share:company_recovery"],
+      "roles": ["assisted_recovery_factor"]
+    },
+    {
+      "id": "phone",
+      "owner": "user",
+      "class": "general_purpose",
+      "stores": [],
+      "roles": ["ciphertext_transport", "account_authentication"]
+    }
+  ],
+  "normal_spending": {
+    "required_components": ["hardware_wallet"],
+    "script_type": "p2tr-keypath",
+    "company_involved": false,
+    "recovery_components_involved": false
+  },
+  "recovery_paths": [
+    {
+      "id": "assisted-home",
+      "shares": ["user_home", "company_recovery"],
+      "reconstructs_on": "replacement_wallet",
+      "company_involved": true,
+      "required_components": ["home_backup", "company_service", "replacement_wallet", "phone"]
+    },
+    {
+      "id": "assisted-remote",
+      "shares": ["user_exit", "company_recovery"],
+      "reconstructs_on": "replacement_wallet",
+      "company_involved": true,
+      "required_components": ["remote_backup", "company_service", "replacement_wallet", "phone"]
+    },
+    {
+      "id": "company-independent-exit",
+      "shares": ["user_home", "user_exit"],
+      "reconstructs_on": "replacement_wallet",
+      "company_involved": false,
+      "required_components": ["home_backup", "remote_backup", "replacement_wallet"]
+    }
+  ],
+  "channels": [
+    {
+      "id": "assisted-share-delivery",
+      "from": "company_service",
+      "to": "replacement_wallet",
+      "via": "phone",
+      "payload": "share:company_recovery",
+      "end_to_end_encrypted": true,
+      "endpoint_authentication": "replacement-wallet attestation and one-time session key"
+    }
+  ],
+  "public_data": {
+    "allowed": ["wallet_descriptor", "master_fingerprint", "first_receive_address", "Codex32 identifier", "threshold", "share indices"],
+    "forbidden": ["seed", "plaintext Codex32 share", "recovery-session plaintext"]
+  },
+  "invariants": [
+    "The company possesses fewer than two shares.",
+    "No phone, laptop, browser, cloud store, or public ledger stores a seed or plaintext recovery quorum.",
+    "Normal spending uses only the active dedicated hardware signer.",
+    "The two user-held physical shares permit recovery after permanent company disappearance.",
+    "Every one of the three shares may be lost while one recovery path remains.",
+    "Reconstruction occurs only inside dedicated signer hardware and binds to a separately recorded public wallet identity."
+  ]
+}
