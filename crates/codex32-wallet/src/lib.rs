@@ -7,6 +7,7 @@ pub mod ceremony;
 
 use bdk_wallet::bitcoin::{
     Address, Amount, Block, FeeRate, Network, Psbt, Transaction, bip32::Xpriv,
+    hashes::{Hash as _, HashEngine as _, sha256},
 };
 use bdk_wallet::{
     ChangeSet, KeychainKind, SignOptions, Wallet, chain::Merge, descriptor::template::Bip86,
@@ -51,6 +52,43 @@ struct Snapshot {
     network: Network,
     changeset: ChangeSet,
 }
+/// Canonical public recovery identity. Descriptors disclose wallet activity
+/// when paired with chain data, but contain no private key material.
+#[derive(Clone, PartialEq, Eq)]
+pub struct WalletIdentity {
+    network: Network,
+    external_descriptor: String,
+    internal_descriptor: String,
+    digest: [u8; 32],
+}
+
+impl std::fmt::Debug for WalletIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WalletIdentity")
+            .field("network", &self.network)
+            .field("digest", &self.digest)
+            .finish_non_exhaustive()
+    }
+}
+
+impl WalletIdentity {
+    pub fn network(&self) -> Network {
+        self.network
+    }
+
+    pub fn external_descriptor(&self) -> &str {
+        &self.external_descriptor
+    }
+
+    pub fn internal_descriptor(&self) -> &str {
+        &self.internal_descriptor
+    }
+
+    pub fn digest(&self) -> [u8; 32] {
+        self.digest
+    }
+}
+
 
 pub struct CodexWallet {
     wallet: Wallet,
@@ -144,6 +182,34 @@ impl CodexWallet {
         })
         .map_err(|_| Error::State)
     }
+    /// Bind network, script policy, origins, public keys, and both keychains to
+    /// one strong public identity. BDK's canonical descriptor strings include
+    /// their descriptor checksums.
+    pub fn wallet_identity(&self) -> WalletIdentity {
+        let external_descriptor = self
+            .wallet
+            .public_descriptor(KeychainKind::External)
+            .to_string();
+        let internal_descriptor = self
+            .wallet
+            .public_descriptor(KeychainKind::Internal)
+            .to_string();
+        let mut engine = sha256::Hash::engine();
+        engine.input(b"codex32/wallet-identity/v1\0");
+        engine.input(self.network.chain_hash().as_bytes());
+        for descriptor in [&external_descriptor, &internal_descriptor] {
+            engine.input(&(descriptor.len() as u32).to_be_bytes());
+            engine.input(descriptor.as_bytes());
+        }
+        let digest = sha256::Hash::from_engine(engine).to_byte_array();
+        WalletIdentity {
+            network: self.network,
+            external_descriptor,
+            internal_descriptor,
+            digest,
+        }
+    }
+
 
     /// Preview an address without consuming its index.
     pub fn address(&self, change: bool, index: u32) -> Result<String, Error> {

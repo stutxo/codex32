@@ -49,6 +49,7 @@ fn shares_restore_identical_receive_and_change_addresses() {
             .map(|s| s.parse().unwrap())
             .collect();
         let restored = CodexWallet::restore(&shares, Network::Signet).unwrap();
+        assert_eq!(restored.wallet_identity(), expected.wallet_identity());
         for change in [false, true] {
             for index in [0, 1, 7, 25] {
                 assert_eq!(
@@ -68,6 +69,19 @@ fn public_state_reload_preserves_address_index_and_rejects_another_seed() {
     assert!(first.starts_with("bcrt1p"));
     let next = wallet.address(false, 1).unwrap();
     let state = wallet.export_public_state().unwrap();
+    let identity = wallet.wallet_identity();
+    assert_eq!(identity.network(), Network::Regtest);
+    assert!(identity.external_descriptor().starts_with("tr("));
+    assert!(identity.internal_descriptor().starts_with("tr("));
+    assert!(!identity.external_descriptor().contains("prv"));
+    assert!(!identity.internal_descriptor().contains("prv"));
+    assert_ne!(
+        identity.digest(),
+        CodexWallet::from_seed(&seed, Network::Signet)
+            .unwrap()
+            .wallet_identity()
+            .digest()
+    );
     assert!(!state.contains("tprv") && !state.contains("xprv"));
     assert!(
         !state.contains(
@@ -78,6 +92,7 @@ fn public_state_reload_preserves_address_index_and_rejects_another_seed() {
     );
     let mut loaded = CodexWallet::load(&seed, Network::Regtest, &state).unwrap();
     assert_eq!(loaded.next_receive_address(), next);
+    assert_eq!(loaded.wallet_identity(), identity);
     assert_ne!(first, next);
     assert!(
         CodexWallet::load(
