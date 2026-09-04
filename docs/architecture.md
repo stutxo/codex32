@@ -1,14 +1,18 @@
 # Architecture and security questions
 
-Proposed direction; no implementation has been selected or audited.
+Proposed direction; no implementation has been selected or audited. The goal is a complete wallet backed by shared Rust libraries; see [the library plan](rust-library.md) for component boundaries and the first build milestone.
 
-## Separate learning from secret handling
+## Separate backup logic from platform secret handling
 
-The web prototype should operate only on fixed public examples. A future secret-handling tool should be distributed as a versioned, verifiable offline artifact with bundled dependencies and assets. Disabling networking does not make an already compromised device or downloaded program trustworthy.
+The hosted learning demo should operate only on fixed public examples; wallet experiments should initially use test networks. A production application's delivery and secret storage need their own design. Native mobile is the recommended first production target, with encrypted local signing material and operating-system protection for its storage key.
+
+The reusable BIP 93 library should operate without network access or storage. It can also support a versioned, verifiable offline recovery artifact with bundled dependencies and assets. Disabling networking does not make an already compromised device or downloaded program trustworthy. A mobile wallet that signs ordinary payments is still a hot wallet even when its recovery operations work offline.
 
 The [original guide](https://secretcodex32.com/docs/2023-03-07--color.pdf) explicitly cautions against entering secrets into websites. Browser technology could still provide a local interface, but offline use requires an intentional distribution and verification design.
 
-Keep parsing, checksum validation, share operations, and seed decoding separate from the interface. Evaluate the [Rust reference implementation](https://github.com/apoelstra/rust-codex32) and alternatives for actual coverage, maintenance, dependencies, licensing, and review history. “Reference implementation” is not an audit claim; its README describes incomplete and rough areas. Rust/WASM and a native wrapper are candidates, not commitments.
+Keep parsing, checksum validation, share operations, and seed decoding separate from wallet transaction logic and the interface. Evaluate the [Rust reference implementation](https://github.com/apoelstra/rust-codex32) and the current [bech32 primitives](https://docs.rs/bech32/latest/bech32/) for actual coverage, dependencies, licensing, and review history. “Reference implementation” is not an audit claim; its README describes incomplete and rough areas. WASM and native bindings should expose the same tested Rust operations.
+
+Keep signing material inside the Rust wallet object where practical, with explicit import and backup export operations. Displaying or entering backup material necessarily crosses a UI boundary. Rust and WASM cannot make a compromised host interface trustworthy or guarantee that all copies of displayed secrets are erased.
 
 ## Recovery compatibility
 

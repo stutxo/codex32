@@ -1,6 +1,6 @@
 # Product concept
 
-Research and initial proposal: 2026-09-04.
+Research and proposal updated: 2026-09-04. Product goal: a simple, complete Bitcoin wallet with BIP 93 backup and recovery.
 
 ## Could this be useful?
 
@@ -8,7 +8,7 @@ Yes, potentially, for people who care about durable Bitcoin backups and are will
 
 Codex32 supports threshold backups: for example, any two shares in a properly generated two-of-three set recover the seed. It supports checking and reconstruction with paper tools. This is a seed backup mechanism; it does not itself create a multisignature spending policy. [BIP 93](https://github.com/bitcoin/bips/blob/master/bip-0093.mediawiki)
 
-The strongest early audiences are careful self-custody users, educators running backup workshops, and people preparing recovery instructions for a trusted person. Everyday payments are a weaker starting point because they add substantial wallet engineering without testing the core idea.
+The strongest early audiences are careful self-custody users, educators running backup workshops, and people preparing recovery instructions for a trusted person. The wallet should support ordinary receiving and sending while making backup unusually understandable. Reuse established wallet components so development can concentrate on this experience.
 
 ## What could distinguish it?
 
@@ -28,24 +28,29 @@ The visual theme should support these tasks. Measure successful recovery, not ju
 
 | Option | Value | Principal tradeoff | Proposed role |
 | --- | --- | --- | --- |
-| Web learning tool | Easy to try and share | Live delivery is a poor trust boundary for secrets | First prototype, public examples only |
-| Offline companion | Focused backup, checking, and recovery | Requires trustworthy distribution and compatible wallet import | Main product hypothesis |
-| Complete wallet | Integrated receiving and spending | Adds signing, chain access, fee handling, and device integrations | Later decision |
+| Shared Rust libraries | Identical backup and wallet rules across interfaces | Needs well-defined boundaries and platform testing | Recommended foundation |
+| Web wallet prototype | Quick interaction and recovery experiments | Production secret handling needs a separate security decision | Public fixtures and test networks first |
+| Native mobile wallet | Integrated receiving, sending, and backup | Requires native storage, device testing, and release engineering | Recommended first real-funds application |
+| Offline recovery utility | Reuses the backup library independently | Requires trustworthy distribution and a documented recovery path | Useful secondary tool |
 
 These are proposed choices, not implemented capabilities.
 
 ## First prototype
 
-The initial journey is: learn the threshold idea, choose a sample backup, prepare practice cards, verify them, simulate losing one, and recover the example wallet. Clearly mark practice material and never generate fundable backup material for the demo.
+The initial library milestone is a tested seed-to-shares-to-seed round trip. The first wallet demonstration then creates a test wallet, prepares practice cards, verifies recovery, receives test bitcoin, and sends it. Use a fresh wallet instance for the recovery check and compare its receiving and change addresses with the original.
+
+The interface should begin with “Create wallet” and “Restore wallet,” then show balance, receive, send, and backup. Recommend one backup preset, initially two-of-three, while allowing the underlying library to support the standard's wider range. The exact default seed length and backup presentation remain design decisions. Clearly mark public fixtures and test-network wallets.
+
+Shares are needed for recovery, not each payment. A normal installed wallet retains signing capability, so its device protection matters independently of how its backup is split. The interface must make this understandable without adding ceremony to every payment.
 
 Support familiar language: “Two shares are required to recover,” “This share has a copying error,” and “Practice recovery complete.” Explain the meaning of successful checks precisely.
 
 ## Milestones
 
-1. **Practice experience:** build the visual prototype with fixed public examples, print layouts, and mobile and keyboard support.
-2. **Validated core:** choose a maintained implementation, pin its version, check official vectors, and compare recovery with an independent implementation.
-3. **Offline pilot:** define release verification, demonstrate recovery without network access, and document one proven wallet integration.
-4. **Product decision:** observe users completing backup and recovery; decide whether a companion solves the need or a full wallet adds enough value.
+1. **Reusable backup library:** evaluate existing Rust components, pin the chosen versions, implement the required BIP 93 API, and verify official vectors and native/WASM behavior.
+2. **Small working wallet:** integrate BDK and prove creation, recovery, address discovery, receiving, and spending on a local regtest network.
+3. **One simple interface:** choose the first application target, add its bindings and storage, and build the illustrated backup experience. Exercise it on a public test network.
+4. **Release preparation:** validate recovery with users, test native secret storage and release verification, and independently review the exact implementation before enabling real funds.
 
 Before a real-funds release, resolve the risks in [architecture.md](architecture.md). A visually complete prototype is not that release.
 

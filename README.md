@@ -1,6 +1,6 @@
 # codex32
 
-A Bitcoin wallet concept centered on thoughtful backup and recovery, inspired by the illustrated [Shamir Secret Sharing Codex](https://secretcodex32.com/docs/2023-03-07--color.pdf).
+A simple Bitcoin wallet with BIP 93 backups, inspired by the illustrated [Shamir Secret Sharing Codex](https://secretcodex32.com/docs/2023-03-07--color.pdf).
 
 The idea: make creating, checking, keeping, and recovering physical key backups feel understandable and deliberate. Carry the book's visual character into an interface that helps people practice recovery before they need it.
 
@@ -8,11 +8,14 @@ The idea: make creating, checking, keeping, and recovering physical key backups 
 
 ## Starting point
 
-The proposed first product is an offline backup and recovery companion, with a web demo for learning. A complete wallet remains a later option, informed by usability and interoperability work.
+The product goal is a complete, simple wallet: create or restore, receive, send, and manage a Codex32 backup. The recommended implementation starts with a reusable Rust BIP 93 library, adds a shared wallet core using Bitcoin Dev Kit, and exposes that core through thin web or mobile bindings.
+
+A browser prototype can exercise public fixtures and test networks. Native mobile is the current recommendation for the first real-funds application; the launch platform has not been selected.
 
 - [Product concept and milestones](docs/concept.md)
 - [Visual direction](docs/design.md)
 - [Architecture and security questions](docs/architecture.md)
+- [Rust library and wallet plan](docs/rust-library.md)
 
 ## References
 
