@@ -201,6 +201,65 @@ fn contributions_and_delivery_bind_every_session_context_field() {
     }
 }
 
+#[test]
+fn malformed_contribution_metadata_fails_before_commitment_acceptance() {
+    let context = context(1_000);
+    let (hardware, company) = contributions();
+    assert_eq!(
+        context.contribution_commitment(ContributionRole::Hardware, &company),
+        Err(CeremonyError::ContributionMetadata)
+    );
+    assert_eq!(
+        context.contribution_commitment(ContributionRole::Company, &hardware),
+        Err(CeremonyError::ContributionMetadata)
+    );
+
+    let cases = [
+        generate_share(
+            32,
+            "test".parse().unwrap(),
+            2,
+            ShareIndex::from_char('d').unwrap(),
+            &mut ByteRng(41),
+        )
+        .unwrap(),
+        generate_share(
+            32,
+            "dkg2".parse().unwrap(),
+            3,
+            ShareIndex::from_char('d').unwrap(),
+            &mut ByteRng(42),
+        )
+        .unwrap(),
+        generate_share(
+            16,
+            "dkg2".parse().unwrap(),
+            2,
+            ShareIndex::from_char('d').unwrap(),
+            &mut ByteRng(43),
+        )
+        .unwrap(),
+        generate_share(
+            32,
+            "dkg2".parse().unwrap(),
+            2,
+            ShareIndex::from_char('c').unwrap(),
+            &mut ByteRng(44),
+        )
+        .unwrap(),
+    ];
+    for malformed in cases {
+        assert_eq!(
+            context.contribution_commitment(ContributionRole::Company, &malformed),
+            Err(CeremonyError::ContributionMetadata)
+        );
+    }
+    assert_eq!(
+        CreationCeremony::begin(context, &hardware, 1_001).unwrap_err(),
+        CeremonyError::Expired
+    );
+}
+
 
 #[test]
 fn tamper_expiry_wrong_order_and_replay_fail_closed() {
