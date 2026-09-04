@@ -1,6 +1,10 @@
 use codex32_core::{Codex32, ShareIndex, generate_share, recover};
-use codex32_wallet::ceremony::{
-    CeremonyContext, CeremonyError, CeremonyState, ContributionRole, CreationCeremony,
+use codex32_wallet::{
+    CodexWallet,
+    bitcoin::Network,
+    ceremony::{
+        CeremonyContext, CeremonyError, CeremonyState, ContributionRole, CreationCeremony,
+    },
 };
 use rand_core::{TryCryptoRng, TryRngCore};
 
@@ -103,6 +107,43 @@ fn committed_ceremony_produces_the_complete_recovery_matrix() {
     assert!(debug.contains("[REDACTED]"));
     assert!(!debug.contains(finalized.user_exit().export().as_str()));
 }
+#[test]
+fn company_loss_exit_preserves_the_assisted_wallet_identity() {
+    let context = context(1_000);
+    let (hardware, company) = contributions();
+    let company_commitment = context
+        .contribution_commitment(ContributionRole::Company, &company)
+        .unwrap();
+    let mut ceremony = CreationCeremony::begin(context, &hardware, 900).unwrap();
+    let aad = ceremony
+        .lock_company_commitment(company_commitment, 901)
+        .unwrap();
+    ceremony
+        .accept_company_share(&company, aad, 902)
+        .unwrap();
+    let finalized = ceremony.finalize(&hardware, &company, 903).unwrap();
+    let exit = finalized.user_exit().clone();
+
+    let assisted_home =
+        CodexWallet::restore(&[hardware.clone(), company.clone()], Network::Signet).unwrap();
+    let assisted_remote =
+        CodexWallet::restore(&[exit.clone(), company], Network::Signet).unwrap();
+    let company_absent =
+        CodexWallet::restore(&[hardware, exit], Network::Signet).unwrap();
+    assert_eq!(
+        company_absent.wallet_identity(),
+        assisted_home.wallet_identity()
+    );
+    assert_eq!(
+        company_absent.wallet_identity(),
+        assisted_remote.wallet_identity()
+    );
+    assert_eq!(
+        company_absent.address(false, 0).unwrap(),
+        assisted_home.address(false, 0).unwrap()
+    );
+}
+
 
 #[test]
 fn tamper_expiry_wrong_order_and_replay_fail_closed() {
