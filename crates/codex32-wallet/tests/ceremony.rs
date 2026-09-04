@@ -1,9 +1,11 @@
 use codex32_core::{Codex32, ShareIndex, generate_share, recover};
+use std::collections::BTreeSet;
 use codex32_wallet::{
     CodexWallet,
     bitcoin::Network,
     ceremony::{
-        CeremonyContext, CeremonyError, CeremonyState, ContributionRole, CreationCeremony,
+        CeremonyContext, CeremonyError, CeremonyReplayStore, CeremonyState, ContributionRole,
+        CreationCeremony,
     },
 };
 use rand_core::{TryCryptoRng, TryRngCore};
@@ -36,6 +38,15 @@ impl TryRngCore for ByteRng {
 }
 
 impl TryCryptoRng for ByteRng {}
+#[derive(Default)]
+struct MemoryReplayStore(BTreeSet<[u8; 32]>);
+
+impl CeremonyReplayStore for MemoryReplayStore {
+    fn reserve(&mut self, replay_id: [u8; 32], _expires_at: u64) -> bool {
+        self.0.insert(replay_id)
+    }
+}
+
 
 fn context(expires_at: u64) -> CeremonyContext {
     CeremonyContext::new(
@@ -73,10 +84,12 @@ fn contributions() -> (Codex32, Codex32) {
 fn committed_ceremony_produces_the_complete_recovery_matrix() {
     let context = context(1_000);
     let (hardware, company) = contributions();
+    let mut replay_store = MemoryReplayStore::default();
     let company_commitment = context
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
-    let mut ceremony = CreationCeremony::begin(context, &hardware, 900).unwrap();
+    let mut ceremony =
+        CreationCeremony::begin(context, &hardware, 900, &mut replay_store).unwrap();
     assert_eq!(ceremony.state(), CeremonyState::HardwareCommitted);
     let delivery_aad = ceremony
         .lock_company_commitment(company_commitment, 901)
@@ -111,10 +124,12 @@ fn committed_ceremony_produces_the_complete_recovery_matrix() {
 fn company_loss_exit_preserves_the_assisted_wallet_identity() {
     let context = context(1_000);
     let (hardware, company) = contributions();
+    let mut replay_store = MemoryReplayStore::default();
     let company_commitment = context
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
-    let mut ceremony = CreationCeremony::begin(context, &hardware, 900).unwrap();
+    let mut ceremony =
+        CreationCeremony::begin(context, &hardware, 900, &mut replay_store).unwrap();
     let aad = ceremony
         .lock_company_commitment(company_commitment, 901)
         .unwrap();
@@ -148,6 +163,7 @@ fn company_loss_exit_preserves_the_assisted_wallet_identity() {
 fn contributions_and_delivery_bind_every_session_context_field() {
     let base = context(1_000);
     let (hardware, company) = contributions();
+    let mut replay_store = MemoryReplayStore::default();
     let base_commitment = base
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
@@ -179,7 +195,8 @@ fn contributions_and_delivery_bind_every_session_context_field() {
         context(1_001),
     ];
 
-    let mut base_ceremony = CreationCeremony::begin(base, &hardware, 900).unwrap();
+    let mut base_ceremony =
+        CreationCeremony::begin(base, &hardware, 900, &mut replay_store).unwrap();
     let base_aad = base_ceremony
         .lock_company_commitment(base_commitment, 901)
         .unwrap();
@@ -189,7 +206,7 @@ fn contributions_and_delivery_bind_every_session_context_field() {
             .unwrap();
         assert_ne!(variant_commitment, base_commitment);
         let mut variant_ceremony =
-            CreationCeremony::begin(variant, &hardware, 900).unwrap();
+            CreationCeremony::begin(variant, &hardware, 900, &mut replay_store).unwrap();
         let variant_aad = variant_ceremony
             .lock_company_commitment(base_commitment, 901)
             .unwrap();
@@ -205,6 +222,7 @@ fn contributions_and_delivery_bind_every_session_context_field() {
 fn malformed_contribution_metadata_fails_before_commitment_acceptance() {
     let context = context(1_000);
     let (hardware, company) = contributions();
+    let mut replay_store = MemoryReplayStore::default();
     assert_eq!(
         context.contribution_commitment(ContributionRole::Hardware, &company),
         Err(CeremonyError::ContributionMetadata)
@@ -255,7 +273,7 @@ fn malformed_contribution_metadata_fails_before_commitment_acceptance() {
         );
     }
     assert_eq!(
-        CreationCeremony::begin(context, &hardware, 1_001).unwrap_err(),
+        CreationCeremony::begin(context, &hardware, 1_001, &mut replay_store).unwrap_err(),
         CeremonyError::Expired
     );
 }
@@ -265,10 +283,16 @@ fn malformed_contribution_metadata_fails_before_commitment_acceptance() {
 fn tamper_expiry_wrong_order_and_replay_fail_closed() {
     let ctx = context(1_000);
     let (hardware, company) = contributions();
+    let mut replay_store = MemoryReplayStore::default();
     let commitment = ctx
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
-    let mut ceremony = CreationCeremony::begin(ctx, &hardware, 900).unwrap();
+    let mut ceremony =
+        CreationCeremony::begin(ctx, &hardware, 900, &mut replay_store).unwrap();
+    assert_eq!(
+        CreationCeremony::begin(ctx, &hardware, 900, &mut replay_store).unwrap_err(),
+        CeremonyError::Replay
+    );
 
     assert_eq!(
         ceremony.accept_company_share(&company, [0; 32], 901),
@@ -312,7 +336,8 @@ fn tamper_expiry_wrong_order_and_replay_fail_closed() {
         Err(CeremonyError::State)
     ));
 
-    let mut expired = CreationCeremony::begin(context(910), &hardware, 910).unwrap();
+    let mut expired =
+        CreationCeremony::begin(context(910), &hardware, 910, &mut replay_store).unwrap();
     assert_eq!(
         expired.lock_company_commitment(commitment, 911),
         Err(CeremonyError::Expired)

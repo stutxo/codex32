@@ -46,6 +46,12 @@ pub enum CeremonyState {
     CompanyRevealed,
     Finalized,
 }
+/// Durable implementations must atomically reserve a context before creation.
+/// Returning `false` means either replay or storage failure; both fail closed.
+pub trait CeremonyReplayStore {
+    fn reserve(&mut self, replay_id: [u8; 32], expires_at: u64) -> bool;
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CeremonyError {
@@ -55,6 +61,8 @@ pub enum CeremonyError {
     Expired,
     #[error("operation is not valid in the current ceremony state")]
     State,
+    #[error("ceremony context was already used or could not be durably reserved")]
+    Replay,
     #[error("contribution does not match the fixed ceremony metadata")]
     ContributionMetadata,
     #[error("contribution does not match its locked commitment")]
@@ -181,6 +189,13 @@ impl CeremonyContext {
         engine.input(&company);
         sha256::Hash::from_engine(engine).to_byte_array()
     }
+    fn replay_id(self) -> [u8; 32] {
+        let mut engine = sha256::Hash::engine();
+        engine.input(b"codex32/creation-replay/v1\0");
+        self.input(&mut engine);
+        sha256::Hash::from_engine(engine).to_byte_array()
+    }
+
 
     fn transcript_id(self, hardware: [u8; 32], company: [u8; 32]) -> [u8; 32] {
         let aad = self.delivery_aad(hardware, company);
@@ -209,14 +224,18 @@ impl fmt::Debug for CreationCeremony {
 }
 
 impl CreationCeremony {
-    pub fn begin(
+    pub fn begin<S: CeremonyReplayStore>(
         context: CeremonyContext,
         hardware_share: &Codex32,
         now: u64,
+        replay_store: &mut S,
     ) -> Result<Self, CeremonyError> {
         context.ensure_live(now)?;
         let hardware_commitment =
             context.contribution_commitment(ContributionRole::Hardware, hardware_share)?;
+        if !replay_store.reserve(context.replay_id(), context.expires_at) {
+            return Err(CeremonyError::Replay);
+        }
         Ok(Self {
             context,
             hardware_commitment,
