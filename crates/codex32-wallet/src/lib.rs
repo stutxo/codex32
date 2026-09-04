@@ -2,6 +2,8 @@
 //!
 //! This milestone supports test networks only. It uses BIP 84, account zero,
 //! with external and change keychains. Chain data and storage are caller-owned.
+pub mod ceremony;
+
 
 use bdk_wallet::bitcoin::{
     Address, Amount, Block, FeeRate, Network, Psbt, Transaction, bip32::Xpriv,

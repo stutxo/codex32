@@ -1,0 +1,167 @@
+use codex32_core::{Codex32, ShareIndex, generate_share, recover};
+use codex32_wallet::ceremony::{
+    CeremonyContext, CeremonyError, CeremonyState, ContributionRole, CreationCeremony,
+};
+use rand_core::{TryCryptoRng, TryRngCore};
+
+#[derive(Debug)]
+struct ByteRng(u8);
+
+impl TryRngCore for ByteRng {
+    type Error = core::convert::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        let mut bytes = [0; 4];
+        self.try_fill_bytes(&mut bytes)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        let mut bytes = [0; 8];
+        self.try_fill_bytes(&mut bytes)?;
+        Ok(u64::from_le_bytes(bytes))
+    }
+
+    fn try_fill_bytes(&mut self, destination: &mut [u8]) -> Result<(), Self::Error> {
+        for byte in destination {
+            *byte = self.0;
+            self.0 = self.0.wrapping_add(17);
+        }
+        Ok(())
+    }
+}
+
+impl TryCryptoRng for ByteRng {}
+
+fn context(expires_at: u64) -> CeremonyContext {
+    CeremonyContext::new(
+        "dkg2".parse().unwrap(),
+        [1; 32],
+        [2; 32],
+        [3; 32],
+        expires_at,
+    )
+    .unwrap()
+}
+
+fn contributions() -> (Codex32, Codex32) {
+    let identifier = "dkg2".parse().unwrap();
+    let hardware = generate_share(
+        32,
+        identifier,
+        2,
+        ShareIndex::from_char('a').unwrap(),
+        &mut ByteRng(11),
+    )
+    .unwrap();
+    let company = generate_share(
+        32,
+        identifier,
+        2,
+        ShareIndex::from_char('d').unwrap(),
+        &mut ByteRng(29),
+    )
+    .unwrap();
+    (hardware, company)
+}
+
+#[test]
+fn committed_ceremony_produces_the_complete_recovery_matrix() {
+    let context = context(1_000);
+    let (hardware, company) = contributions();
+    let company_commitment = context
+        .contribution_commitment(ContributionRole::Company, &company)
+        .unwrap();
+    let mut ceremony = CreationCeremony::begin(context, &hardware, 900).unwrap();
+    assert_eq!(ceremony.state(), CeremonyState::HardwareCommitted);
+    let delivery_aad = ceremony
+        .lock_company_commitment(company_commitment, 901)
+        .unwrap();
+    assert_eq!(delivery_aad, ceremony.delivery_aad(902).unwrap());
+    ceremony
+        .accept_company_share(&company, delivery_aad, 903)
+        .unwrap();
+    let finalized = ceremony.finalize(&hardware, &company, 904).unwrap();
+    assert_eq!(ceremony.state(), CeremonyState::Finalized);
+
+    let expected = finalized.recovered_secret().secret_seed().unwrap();
+    for pair in [
+        [hardware.clone(), company.clone()],
+        [hardware, finalized.user_exit().clone()],
+        [company, finalized.user_exit().clone()],
+    ] {
+        assert_eq!(
+            recover(&pair)
+                .unwrap()
+                .secret_seed()
+                .unwrap()
+                .expose_secret(),
+            expected.expose_secret()
+        );
+    }
+    let debug = format!("{finalized:?}");
+    assert!(debug.contains("[REDACTED]"));
+    assert!(!debug.contains(finalized.user_exit().export().as_str()));
+}
+
+#[test]
+fn tamper_expiry_wrong_order_and_replay_fail_closed() {
+    let ctx = context(1_000);
+    let (hardware, company) = contributions();
+    let commitment = ctx
+        .contribution_commitment(ContributionRole::Company, &company)
+        .unwrap();
+    let mut ceremony = CreationCeremony::begin(ctx, &hardware, 900).unwrap();
+
+    assert_eq!(
+        ceremony.accept_company_share(&company, [0; 32], 901),
+        Err(CeremonyError::State)
+    );
+    let mut aad = ceremony.lock_company_commitment(commitment, 902).unwrap();
+    aad[0] ^= 1;
+    assert_eq!(
+        ceremony.accept_company_share(&company, aad, 903),
+        Err(CeremonyError::DeliveryBinding)
+    );
+    assert_eq!(ceremony.state(), CeremonyState::CommitmentsLocked);
+
+    let (_, different_company) = {
+        let identifier = "dkg2".parse().unwrap();
+        let different = generate_share(
+            32,
+            identifier,
+            2,
+            ShareIndex::from_char('d').unwrap(),
+            &mut ByteRng(77),
+        )
+        .unwrap();
+        (hardware.clone(), different)
+    };
+    let correct_aad = ceremony.delivery_aad(904).unwrap();
+    assert_eq!(
+        ceremony.accept_company_share(&different_company, correct_aad, 905),
+        Err(CeremonyError::Commitment)
+    );
+    ceremony
+        .accept_company_share(&company, correct_aad, 906)
+        .unwrap();
+    assert_eq!(
+        ceremony.accept_company_share(&company, correct_aad, 907),
+        Err(CeremonyError::State)
+    );
+    ceremony.finalize(&hardware, &company, 908).unwrap();
+    assert!(matches!(
+        ceremony.finalize(&hardware, &company, 909),
+        Err(CeremonyError::State)
+    ));
+
+    let mut expired = CreationCeremony::begin(context(910), &hardware, 910).unwrap();
+    assert_eq!(
+        expired.lock_company_commitment(commitment, 911),
+        Err(CeremonyError::Expired)
+    );
+    assert_eq!(
+        CeremonyContext::new("dkg2".parse().unwrap(), [0; 32], [2; 32], [3; 32], 1),
+        Err(CeremonyError::Binding)
+    );
+}
