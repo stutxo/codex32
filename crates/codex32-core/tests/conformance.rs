@@ -47,6 +47,37 @@ fn every_official_invalid_vector_is_rejected() {
         );
     }
 }
+fn assert_single_substitutions_rejected(encoded: &str) -> usize {
+    const REPLACEMENTS: &[u8] = b"QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L1";
+    assert!(encoded.parse::<Codex32>().is_ok());
+    let mut rejected = 0;
+    for position in 0..encoded.len() {
+        for &replacement in REPLACEMENTS {
+            if replacement == encoded.as_bytes()[position] {
+                continue;
+            }
+            let mut corrupted = encoded.as_bytes().to_vec();
+            corrupted[position] = replacement;
+            let corrupted = String::from_utf8(corrupted).unwrap();
+            assert!(
+                corrupted.parse::<Codex32>().is_err(),
+                "accepted substitution at {position}: {corrupted}"
+            );
+            rejected += 1;
+        }
+    }
+    rejected
+}
+
+#[test]
+fn every_single_character_substitution_is_rejected_for_both_checksums() {
+    let standard = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM";
+    let long = "MS100C8VSM32ZXFGUHPCHTLUPZRY9X8GF2TVDW0S3JN54KHCE6MUA7LQPZYGSFJD6AN074RXVCEMLH8WU3TK925ACDEFGHJKLMNPQRSTUVWXY06FHPV80UNDVARHRAK";
+    let rejected = assert_single_substitutions_rejected(standard)
+        + assert_single_substitutions_rejected(long);
+    assert_eq!(rejected, (standard.len() + long.len()) * 32);
+}
+
 
 #[test]
 fn official_seeds_decode_with_arbitrary_padding() {
