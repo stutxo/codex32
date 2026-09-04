@@ -212,4 +212,43 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn one_uniform_share_maps_bijectively_to_secret_for_every_index_pair() {
+        let identifier = "test".parse().unwrap();
+        let indices: Vec<ShareIndex> = INDICES
+            .iter()
+            .map(|&index| ShareIndex::from_char(char::from(index)).unwrap())
+            .collect();
+        for left in 0..indices.len() {
+            for right in left + 1..indices.len() {
+                for honest_position in 0..2 {
+                    let mut outputs = 0u32;
+                    for honest_symbol in 0..32 {
+                        let shares: Vec<Codex32> = [indices[left], indices[right]]
+                            .into_iter()
+                            .enumerate()
+                            .map(|(position, index)| {
+                                let mut payload = Zeroizing::new(vec![7; 26]);
+                                if position == honest_position {
+                                    payload[0] = honest_symbol;
+                                }
+                                Codex32 {
+                                    metadata: Metadata {
+                                        threshold: 2,
+                                        identifier,
+                                        index,
+                                        seed_bytes: 16,
+                                    },
+                                    payload,
+                                }
+                            })
+                            .collect();
+                        let secret = recover(&shares).unwrap();
+                        outputs |= 1 << secret.payload[0];
+                    }
+                    assert_eq!(outputs, u32::MAX);
+                }
+            }
+        }
+    }
 }
