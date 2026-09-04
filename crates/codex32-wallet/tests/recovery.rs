@@ -104,9 +104,14 @@ fn public_state_reload_preserves_address_index_and_rejects_another_seed() {
     );
     assert!(CodexWallet::load(&seed, Network::Signet, &state).is_err());
     assert!(CodexWallet::load(&seed, Network::Regtest, "{}").is_err());
-    let changed = state.replacen("\"version\":1", "\"version\":99", 1);
+    let changed = state.replacen("\"version\":2", "\"version\":99", 1);
     assert!(matches!(
         CodexWallet::load(&seed, Network::Regtest, &changed),
+        Err(Error::StateVersion)
+    ));
+    let bip84_era = state.replacen("\"version\":2", "\"version\":1", 1);
+    assert!(matches!(
+        CodexWallet::load(&seed, Network::Regtest, &bip84_era),
         Err(Error::StateVersion)
     ));
     assert!(matches!(

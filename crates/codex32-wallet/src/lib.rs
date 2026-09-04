@@ -16,6 +16,8 @@ use codex32_core::{Codex32, Seed, recover};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+const STATE_VERSION: u32 = 2;
+
 pub use bdk_wallet::bitcoin;
 
 #[derive(Debug, thiserror::Error)]
@@ -141,7 +143,7 @@ impl CodexWallet {
     pub fn load(seed: &Seed, network: Network, serialized: &str) -> Result<Self, Error> {
         let key = root(seed, network)?;
         let snapshot: Snapshot = serde_json::from_str(serialized).map_err(|_| Error::State)?;
-        if snapshot.version != 1 {
+        if snapshot.version != STATE_VERSION {
             return Err(Error::StateVersion);
         }
         if snapshot.network != network {
@@ -176,7 +178,7 @@ impl CodexWallet {
 
     pub fn export_public_state(&self) -> Result<String, Error> {
         serde_json::to_string(&Snapshot {
-            version: 1,
+            version: STATE_VERSION,
             network: self.network,
             changeset: self.state.clone(),
         })
