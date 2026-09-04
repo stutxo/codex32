@@ -1,0 +1,27 @@
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private experimental inputs and exports; public fixtures belong in a named test directory.
+/private/
+/secrets/
+/backups/
+/exports/
+wallet.dat
+*.wallet
+
+# Generated files and dependencies if introduced later
+node_modules/
+dist/
+target/
+coverage/
+*.log
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
