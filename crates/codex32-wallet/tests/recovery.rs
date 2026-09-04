@@ -65,6 +65,7 @@ fn public_state_reload_preserves_address_index_and_rejects_another_seed() {
     let seed = Seed::from_bytes(&[5; 32]).unwrap(); // PUBLIC TEST DATA ONLY.
     let mut wallet = CodexWallet::from_seed(&seed, Network::Regtest).unwrap();
     let first = wallet.next_receive_address();
+    assert!(first.starts_with("bcrt1p"));
     let next = wallet.address(false, 1).unwrap();
     let state = wallet.export_public_state().unwrap();
     assert!(!state.contains("tprv") && !state.contains("xprv"));

@@ -1,6 +1,6 @@
 //! A minimal BIP 93 wallet core built on BDK. Experimental.
 //!
-//! This milestone supports test networks only. It uses BIP 84, account zero,
+//! This milestone supports test networks only. It uses BIP 86, account zero,
 //! with external and change keychains. Chain data and storage are caller-owned.
 pub mod ceremony;
 
@@ -9,7 +9,7 @@ use bdk_wallet::bitcoin::{
     Address, Amount, Block, FeeRate, Network, Psbt, Transaction, bip32::Xpriv,
 };
 use bdk_wallet::{
-    ChangeSet, KeychainKind, SignOptions, Wallet, chain::Merge, descriptor::template::Bip84,
+    ChangeSet, KeychainKind, SignOptions, Wallet, chain::Merge, descriptor::template::Bip86,
 };
 use codex32_core::{Codex32, Seed, recover};
 use serde::{Deserialize, Serialize};
@@ -75,8 +75,8 @@ impl CodexWallet {
     pub fn from_seed(seed: &Seed, network: Network) -> Result<Self, Error> {
         let key = root(seed, network)?;
         let mut wallet = Wallet::create(
-            Bip84(key, KeychainKind::External),
-            Bip84(key, KeychainKind::Internal),
+            Bip86(key, KeychainKind::External),
+            Bip86(key, KeychainKind::Internal),
         )
         .network(network)
         .create_wallet_no_persist()
@@ -112,11 +112,11 @@ impl CodexWallet {
         let wallet = Wallet::load()
             .descriptor(
                 KeychainKind::External,
-                Some(Bip84(key, KeychainKind::External)),
+                Some(Bip86(key, KeychainKind::External)),
             )
             .descriptor(
                 KeychainKind::Internal,
-                Some(Bip84(key, KeychainKind::Internal)),
+                Some(Bip86(key, KeychainKind::Internal)),
             )
             .extract_keys()
             .check_network(network)
