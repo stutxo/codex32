@@ -144,6 +144,63 @@ fn company_loss_exit_preserves_the_assisted_wallet_identity() {
     );
 }
 
+#[test]
+fn contributions_and_delivery_bind_every_session_context_field() {
+    let base = context(1_000);
+    let (hardware, company) = contributions();
+    let base_commitment = base
+        .contribution_commitment(ContributionRole::Company, &company)
+        .unwrap();
+    let variants = [
+        CeremonyContext::new(
+            "dkg2".parse().unwrap(),
+            [9; 32],
+            [2; 32],
+            [3; 32],
+            1_000,
+        )
+        .unwrap(),
+        CeremonyContext::new(
+            "dkg2".parse().unwrap(),
+            [1; 32],
+            [9; 32],
+            [3; 32],
+            1_000,
+        )
+        .unwrap(),
+        CeremonyContext::new(
+            "dkg2".parse().unwrap(),
+            [1; 32],
+            [2; 32],
+            [9; 32],
+            1_000,
+        )
+        .unwrap(),
+        context(1_001),
+    ];
+
+    let mut base_ceremony = CreationCeremony::begin(base, &hardware, 900).unwrap();
+    let base_aad = base_ceremony
+        .lock_company_commitment(base_commitment, 901)
+        .unwrap();
+    for variant in variants {
+        let variant_commitment = variant
+            .contribution_commitment(ContributionRole::Company, &company)
+            .unwrap();
+        assert_ne!(variant_commitment, base_commitment);
+        let mut variant_ceremony =
+            CreationCeremony::begin(variant, &hardware, 900).unwrap();
+        let variant_aad = variant_ceremony
+            .lock_company_commitment(base_commitment, 901)
+            .unwrap();
+        assert_ne!(variant_aad, base_aad);
+        assert_eq!(
+            variant_ceremony.accept_company_share(&company, variant_aad, 902),
+            Err(CeremonyError::Commitment)
+        );
+    }
+}
+
 
 #[test]
 fn tamper_expiry_wrong_order_and_replay_fail_closed() {
