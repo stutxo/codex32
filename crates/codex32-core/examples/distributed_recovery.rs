@@ -89,7 +89,6 @@ fn static_share_exposure_demo(a: &Codex32, c: &Codex32, d: &Codex32) -> Value {
     })
 }
 
-
 fn main() {
     const K: u8 = 2;
     const SEED_BYTES: usize = 32;

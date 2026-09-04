@@ -4,9 +4,9 @@
 //! with external and change keychains. Chain data and storage are caller-owned.
 pub mod ceremony;
 
-
 use bdk_wallet::bitcoin::{
-    Address, Amount, Block, FeeRate, Network, Psbt, Transaction, bip32::Xpriv,
+    Address, Amount, Block, FeeRate, Network, Psbt, Transaction,
+    bip32::Xpriv,
     hashes::{Hash as _, HashEngine as _, sha256},
 };
 use bdk_wallet::{
@@ -98,7 +98,6 @@ impl WalletIdentity {
         encoded
     }
 }
-
 
 pub struct CodexWallet {
     wallet: Wallet,
@@ -219,7 +218,6 @@ impl CodexWallet {
             digest,
         }
     }
-
 
     /// Preview an address without consuming its index.
     pub fn address(&self, change: bool, index: u32) -> Result<String, Error> {

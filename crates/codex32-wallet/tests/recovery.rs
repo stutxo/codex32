@@ -49,7 +49,6 @@ fn fixed_bip86_wallet_identity_vector_is_stable() {
     );
 }
 
-
 #[test]
 fn shares_restore_identical_receive_and_change_addresses() {
     for case in fixture().reference_cases.into_iter().step_by(8) {

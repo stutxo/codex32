@@ -73,11 +73,10 @@ fn assert_single_substitutions_rejected(encoded: &str) -> usize {
 fn every_single_character_substitution_is_rejected_for_both_checksums() {
     let standard = "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM";
     let long = "MS100C8VSM32ZXFGUHPCHTLUPZRY9X8GF2TVDW0S3JN54KHCE6MUA7LQPZYGSFJD6AN074RXVCEMLH8WU3TK925ACDEFGHJKLMNPQRSTUVWXY06FHPV80UNDVARHRAK";
-    let rejected = assert_single_substitutions_rejected(standard)
-        + assert_single_substitutions_rejected(long);
+    let rejected =
+        assert_single_substitutions_rejected(standard) + assert_single_substitutions_rejected(long);
     assert_eq!(rejected, (standard.len() + long.len()) * 32);
 }
-
 
 #[test]
 fn official_seeds_decode_with_arbitrary_padding() {

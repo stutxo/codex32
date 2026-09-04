@@ -52,7 +52,6 @@ pub trait CeremonyReplayStore {
     fn reserve(&mut self, replay_id: [u8; 32], expires_at: u64) -> bool;
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CeremonyError {
     #[error("ceremony bindings and expiry must be nonzero")]
@@ -143,11 +142,7 @@ impl CeremonyContext {
         engine.input(&PROTOCOL_VERSION.to_be_bytes());
         engine.input(&[THRESHOLD, SEED_BYTES as u8]);
         engine.input(&self.identifier_bytes);
-        engine.input(&[
-            HARDWARE_INDEX as u8,
-            EXIT_INDEX as u8,
-            COMPANY_INDEX as u8,
-        ]);
+        engine.input(&[HARDWARE_INDEX as u8, EXIT_INDEX as u8, COMPANY_INDEX as u8]);
         engine.input(&self.ceremony_nonce);
         engine.input(&self.account_binding);
         engine.input(&self.endpoint_binding);
@@ -195,7 +190,6 @@ impl CeremonyContext {
         self.input(&mut engine);
         sha256::Hash::from_engine(engine).to_byte_array()
     }
-
 
     fn transcript_id(self, hardware: [u8; 32], company: [u8; 32]) -> [u8; 32] {
         let aad = self.delivery_aad(hardware, company);
@@ -268,10 +262,9 @@ impl CreationCeremony {
         }
         self.company_commitment = Some(company_commitment);
         self.state = CeremonyState::CommitmentsLocked;
-        Ok(self.context.delivery_aad(
-            self.hardware_commitment,
-            company_commitment,
-        ))
+        Ok(self
+            .context
+            .delivery_aad(self.hardware_commitment, company_commitment))
     }
 
     pub fn delivery_aad(&self, now: u64) -> Result<[u8; 32], CeremonyError> {

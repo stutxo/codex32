@@ -1,5 +1,4 @@
 use codex32_core::{Codex32, ShareIndex, generate_share, recover};
-use std::collections::BTreeSet;
 use codex32_wallet::{
     CodexWallet,
     bitcoin::Network,
@@ -9,6 +8,7 @@ use codex32_wallet::{
     },
 };
 use rand_core::{TryCryptoRng, TryRngCore};
+use std::collections::BTreeSet;
 
 #[derive(Debug)]
 struct ByteRng(u8);
@@ -46,7 +46,6 @@ impl CeremonyReplayStore for MemoryReplayStore {
         self.0.insert(replay_id)
     }
 }
-
 
 fn context(expires_at: u64) -> CeremonyContext {
     CeremonyContext::new(
@@ -88,8 +87,7 @@ fn committed_ceremony_produces_the_complete_recovery_matrix() {
     let company_commitment = context
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
-    let mut ceremony =
-        CreationCeremony::begin(context, &hardware, 900, &mut replay_store).unwrap();
+    let mut ceremony = CreationCeremony::begin(context, &hardware, 900, &mut replay_store).unwrap();
     assert_eq!(ceremony.state(), CeremonyState::HardwareCommitted);
     let delivery_aad = ceremony
         .lock_company_commitment(company_commitment, 901)
@@ -128,23 +126,18 @@ fn company_loss_exit_preserves_the_assisted_wallet_identity() {
     let company_commitment = context
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
-    let mut ceremony =
-        CreationCeremony::begin(context, &hardware, 900, &mut replay_store).unwrap();
+    let mut ceremony = CreationCeremony::begin(context, &hardware, 900, &mut replay_store).unwrap();
     let aad = ceremony
         .lock_company_commitment(company_commitment, 901)
         .unwrap();
-    ceremony
-        .accept_company_share(&company, aad, 902)
-        .unwrap();
+    ceremony.accept_company_share(&company, aad, 902).unwrap();
     let finalized = ceremony.finalize(&hardware, &company, 903).unwrap();
     let exit = finalized.user_exit().clone();
 
     let assisted_home =
         CodexWallet::restore(&[hardware.clone(), company.clone()], Network::Signet).unwrap();
-    let assisted_remote =
-        CodexWallet::restore(&[exit.clone(), company], Network::Signet).unwrap();
-    let company_absent =
-        CodexWallet::restore(&[hardware, exit], Network::Signet).unwrap();
+    let assisted_remote = CodexWallet::restore(&[exit.clone(), company], Network::Signet).unwrap();
+    let company_absent = CodexWallet::restore(&[hardware, exit], Network::Signet).unwrap();
     assert_eq!(
         company_absent.wallet_identity(),
         assisted_home.wallet_identity()
@@ -168,30 +161,9 @@ fn contributions_and_delivery_bind_every_session_context_field() {
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
     let variants = [
-        CeremonyContext::new(
-            "dkg2".parse().unwrap(),
-            [9; 32],
-            [2; 32],
-            [3; 32],
-            1_000,
-        )
-        .unwrap(),
-        CeremonyContext::new(
-            "dkg2".parse().unwrap(),
-            [1; 32],
-            [9; 32],
-            [3; 32],
-            1_000,
-        )
-        .unwrap(),
-        CeremonyContext::new(
-            "dkg2".parse().unwrap(),
-            [1; 32],
-            [2; 32],
-            [9; 32],
-            1_000,
-        )
-        .unwrap(),
+        CeremonyContext::new("dkg2".parse().unwrap(), [9; 32], [2; 32], [3; 32], 1_000).unwrap(),
+        CeremonyContext::new("dkg2".parse().unwrap(), [1; 32], [9; 32], [3; 32], 1_000).unwrap(),
+        CeremonyContext::new("dkg2".parse().unwrap(), [1; 32], [2; 32], [9; 32], 1_000).unwrap(),
         context(1_001),
     ];
 
@@ -278,7 +250,6 @@ fn malformed_contribution_metadata_fails_before_commitment_acceptance() {
     );
 }
 
-
 #[test]
 fn tamper_expiry_wrong_order_and_replay_fail_closed() {
     let ctx = context(1_000);
@@ -287,8 +258,7 @@ fn tamper_expiry_wrong_order_and_replay_fail_closed() {
     let commitment = ctx
         .contribution_commitment(ContributionRole::Company, &company)
         .unwrap();
-    let mut ceremony =
-        CreationCeremony::begin(ctx, &hardware, 900, &mut replay_store).unwrap();
+    let mut ceremony = CreationCeremony::begin(ctx, &hardware, 900, &mut replay_store).unwrap();
     assert_eq!(
         CreationCeremony::begin(ctx, &hardware, 900, &mut replay_store).unwrap_err(),
         CeremonyError::Replay

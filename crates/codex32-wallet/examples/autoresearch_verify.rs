@@ -98,7 +98,10 @@ fn verify() -> Result<serde_json::Value, String> {
     let mut parsed = BTreeMap::<String, Codex32>::new();
     let mut origins = BTreeMap::<String, String>::new();
     for item in &evidence.shares {
-        require(item.index.chars().count() == 1, "share index must be one character")?;
+        require(
+            item.index.chars().count() == 1,
+            "share index must be one character",
+        )?;
         let share: Codex32 = item
             .codex32
             .parse()
@@ -196,14 +199,23 @@ fn verify() -> Result<serde_json::Value, String> {
             declared.seed_hex.eq_ignore_ascii_case(&actual_seed),
             "declared recovered seed is incorrect",
         )?;
-        require(declared.xprv == actual_xprv, "declared BIP32 key is incorrect")?;
+        require(
+            declared.xprv == actual_xprv,
+            "declared BIP32 key is incorrect",
+        )?;
         if let Some(expected) = &expected_seed {
-            require(expected == &actual_seed, "recovery combinations produced different seeds")?;
+            require(
+                expected == &actual_seed,
+                "recovery combinations produced different seeds",
+            )?;
         } else {
             expected_seed = Some(actual_seed);
         }
         if let Some(expected) = &expected_xprv {
-            require(expected == &actual_xprv, "recovery combinations produced different BIP32 keys")?;
+            require(
+                expected == &actual_xprv,
+                "recovery combinations produced different BIP32 keys",
+            )?;
         } else {
             expected_xprv = Some(actual_xprv);
         }
