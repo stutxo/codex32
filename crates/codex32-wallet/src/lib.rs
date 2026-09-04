@@ -89,6 +89,14 @@ impl WalletIdentity {
     pub fn digest(&self) -> [u8; 32] {
         self.digest
     }
+    pub fn digest_hex(&self) -> String {
+        let mut encoded = String::with_capacity(64);
+        for byte in self.digest {
+            use std::fmt::Write as _;
+            write!(&mut encoded, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        encoded
+    }
 }
 
 

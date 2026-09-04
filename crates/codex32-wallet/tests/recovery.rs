@@ -37,6 +37,18 @@ fn official_master_keys_match() {
         );
     }
 }
+#[test]
+fn fixed_bip86_wallet_identity_vector_is_stable() {
+    let seed = Seed::from_bytes(&[5; 32]).unwrap(); // PUBLIC TEST DATA ONLY.
+    let identity = CodexWallet::from_seed(&seed, Network::Regtest)
+        .unwrap()
+        .wallet_identity();
+    assert_eq!(
+        identity.digest_hex(),
+        "adb35db5873ab9d3ba0c4b4b0a8e78b276b4a85fb48e983e6ba4a624771eb0bd"
+    );
+}
+
 
 #[test]
 fn shares_restore_identical_receive_and_change_addresses() {
