@@ -136,7 +136,6 @@ pub fn generate_share<R: TryCryptoRng + ?Sized>(
     })
 }
 
-
 fn check_backup(k: u8, count: usize) -> Result<(), Error> {
     threshold(k)?;
     if k == 0 {

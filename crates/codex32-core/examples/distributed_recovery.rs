@@ -64,7 +64,6 @@ fn adaptive_contribution_demo() -> Value {
     })
 }
 
-
 fn main() {
     const K: u8 = 2;
     const SEED_BYTES: usize = 32;

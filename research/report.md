@@ -148,6 +148,7 @@ A current block hash is public and therefore contributes zero secret entropy. A 
 - `C = user_exit`: offline paper/metal under user control at a geographically and administratively separate location.
 - `D = company_recovery`: one encrypted company-held share.
 - Active hardware wallet stores the reconstructed BIP32 seed and signs ordinary P2TR key-path transactions.
+- Production mainnet policy is fixed BIP86 account `m/86'/0'/0'`: canonical external descriptor `tr([fingerprint/86h/0h/0h]xpub/0/*)` and change descriptor `tr([fingerprint/86h/0h/0h]xpub/1/*)`. Network, origins, and both descriptors are bound into the wallet-identity digest; testnet uses coin type `1'`.
 - A blank replacement hardware wallet is the only electronic recovery target.
 - The phone stores watch-only descriptors and account credentials. During recovery it transports only ciphertext.
 - No seed or plaintext quorum on a phone, laptop, browser, company application server, generic cloud storage, or public ledger.

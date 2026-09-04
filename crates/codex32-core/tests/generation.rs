@@ -68,12 +68,15 @@ fn independent_initial_shares_define_every_recovery_share() {
         .unwrap();
     for pair in [[a.clone(), d.clone()], [c, d]] {
         assert_eq!(
-            recover(&pair).unwrap().secret_seed().unwrap().expose_secret(),
+            recover(&pair)
+                .unwrap()
+                .secret_seed()
+                .unwrap()
+                .expose_secret(),
             expected.expose_secret()
         );
     }
 }
-
 
 #[derive(Debug)]
 struct BrokenRng;
