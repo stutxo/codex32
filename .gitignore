@@ -18,6 +18,7 @@ node_modules/
 dist/
 target/
 coverage/
+__pycache__/
 *.log
 
 # Editor and operating-system files

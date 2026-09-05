@@ -81,7 +81,7 @@ def main():
                 assert rpc("getreceivedbyaddress", destination, 1, wallet="faucet") == 0.25
                 driver.wait(timeout=10)
                 assert driver.returncode == 0
-                print(f"PASS: share recovery, eight address comparisons, receive 1 BTC on regtest, disk reload, signed spend 0.25 BTC, confirmation, and reload. Fee: {signed['fee_sat']} sat.")
+                print(f"PASS: share recovery, eight address comparisons, receive 1 BTC on regtest, disk reload, signed spend 0.25 BTC, pending-spend reload and coin selection, confirmation, and reload. Fee: {signed['fee_sat']} sat.")
             finally:
                 if driver and driver.poll() is None:
                     driver.terminate()

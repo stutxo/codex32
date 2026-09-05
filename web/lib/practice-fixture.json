@@ -1,0 +1,51 @@
+{
+  "id": "bip93-name-2-of-3",
+  "publicPracticeData": true,
+  "name": "BIP 93 NAME example",
+  "threshold": 2,
+  "identifier": "name",
+  "seedBytes": 16,
+  "shares": [
+    "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM",
+    "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN",
+    "MS12NAMEDLL4F8JLH4E5VDVULDLFXU2JHDNLSM97XVENRXEG"
+  ],
+  "shareIndices": [
+    "a",
+    "c",
+    "d"
+  ],
+  "publishedSecret": "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW",
+  "expectedSecret": "ms12names6xqguzttxkeqnjsjzv4jv3nz5k3kwgsphuh6evw",
+  "seedHex": "d1808e096b35b209ca12132b264662a5",
+  "network": "signet",
+  "walletPolicy": "BIP86 single-key Taproot, account 0",
+  "accountPath": "m/86'/1'/0'",
+  "externalPath": "m/86'/1'/0'/0/*",
+  "addresses": [
+    {
+      "index": 0,
+      "path": "m/86'/1'/0'/0/0",
+      "address": "tb1p9qxpv9kekmz62ltyrp0ek2vywkjxtgpgp98898cheslf8mcux28qrayczx"
+    },
+    {
+      "index": 1,
+      "path": "m/86'/1'/0'/0/1",
+      "address": "tb1pkwstlv9ymlrdvwngefyqxdn87u5nfusutfv3wjvc4dqset2ys05qhwx82j"
+    },
+    {
+      "index": 2,
+      "path": "m/86'/1'/0'/0/2",
+      "address": "tb1pk8lmamgcd42l9yzdn8gfvkruggd7fx7n4pmmdz6x75p7wlrjpvfsfr0sht"
+    }
+  ],
+  "provenance": {
+    "title": "BIP 93, Test vector 2",
+    "url": "https://github.com/bitcoin/bips/blob/24e96e870fffaa257b465ce1f0370c14aac588e8/bip-0093.mediawiki#test-vector-2",
+    "revision": "24e96e870fffaa257b465ce1f0370c14aac588e8",
+    "sha256": "45b1758805014b121145765c4e551486347433c7872e1b3277c26815728be5a5",
+    "license": "BSD-3-Clause",
+    "note": "The three shares, encoded secret, and seed hex are published BIP93 data. The signet addresses are locally derived, not BIP93 published address vectors.",
+    "addressVerification": "Derive from the published raw seed using native rust-bitcoin BIP32 and BIP86 Taproot address APIs; confirm its published master xprv; compare all three addresses with existing WASM RecoveryWallet for the published S input and every pair among A/C/D."
+  }
+}

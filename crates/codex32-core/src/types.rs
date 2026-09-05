@@ -214,6 +214,48 @@ impl FromStr for Codex32 {
 }
 
 impl Codex32 {
+    /// Construct a share or secret from uniformly sampled Bech32 payload symbols.
+    /// No randomness is supplied here. Callers generating fresh shares must choose
+    /// the symbols uniformly and independently; payload padding bits are retained.
+    pub fn from_payload(
+        k: u8,
+        identifier: Identifier,
+        index: ShareIndex,
+        symbols: &str,
+    ) -> Result<Self, Error> {
+        threshold(k)?;
+        if k == 0 && !index.is_secret() {
+            return Err(Error::SecretIndex);
+        }
+        if !(26..=103).contains(&symbols.len()) || symbols.len() * 5 % 8 > 4 {
+            return Err(Error::Length);
+        }
+        let seed_bytes = symbols.len() * 5 / 8;
+        check_seed_len(seed_bytes)?;
+        if symbols.bytes().any(|b| b.is_ascii_uppercase())
+            && symbols.bytes().any(|b| b.is_ascii_lowercase())
+        {
+            return Err(Error::MixedCase);
+        }
+        let mut payload = Zeroizing::new(Vec::with_capacity(symbols.len()));
+        for (position, c) in symbols.char_indices() {
+            payload.push(
+                Fe32::from_char(c)
+                    .map_err(|_| Error::Character { position })?
+                    .to_u8(),
+            );
+        }
+        Ok(Self {
+            metadata: Metadata {
+                threshold: k,
+                identifier,
+                index,
+                seed_bytes,
+            },
+            payload,
+        })
+    }
+
     pub fn metadata(&self) -> Metadata {
         self.metadata
     }

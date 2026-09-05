@@ -5,7 +5,7 @@
 pub mod ceremony;
 
 use bdk_wallet::bitcoin::{
-    Address, Amount, Block, FeeRate, Network, Psbt, Transaction,
+    Address, Amount, Block, FeeRate, Network, Psbt, Transaction, Txid,
     bip32::Xpriv,
     hashes::{Hash as _, HashEngine as _, sha256},
 };
@@ -30,6 +30,8 @@ pub enum Error {
     Derivation,
     #[error("invalid wallet state or state belongs to a different wallet")]
     State,
+    #[error("the recovered wallet does not match the expected identity")]
+    IdentityMismatch,
     #[error("unsupported wallet state version")]
     StateVersion,
     #[error("address does not belong to the wallet network")]
@@ -137,6 +139,8 @@ impl CodexWallet {
     }
 
     /// Accept a direct encoded seed or exactly threshold-many recovery shares.
+    /// Checksums detect corruption; they do not authenticate the recovered wallet.
+    /// Use [`Self::restore_verified`] when a trusted original identity is available.
     pub fn restore(backup: &[Codex32], network: Network) -> Result<Self, Error> {
         let secret = if backup.len() == 1 && backup[0].metadata().index.is_secret() {
             backup[0].clone()
@@ -144,6 +148,22 @@ impl CodexWallet {
             recover(backup)?
         };
         Self::from_seed(&secret.secret_seed()?, network)
+    }
+
+    /// Restore only if the resulting network and descriptors match a previously
+    /// recorded [`WalletIdentity::digest`]. The caller must obtain this digest
+    /// from trusted storage or an independently authenticated original wallet,
+    /// not from the same untrusted source as the recovery shares.
+    pub fn restore_verified(
+        backup: &[Codex32],
+        network: Network,
+        expected_digest: [u8; 32],
+    ) -> Result<Self, Error> {
+        let restored = Self::restore(backup, network)?;
+        if restored.wallet_identity().digest() != expected_digest {
+            return Err(Error::IdentityMismatch);
+        }
+        Ok(restored)
     }
 
     /// Load public state and reattach signing keys, checking descriptors and network.
@@ -264,15 +284,38 @@ impl CodexWallet {
         Ok(())
     }
 
+    /// Record relevant pending transactions with their last-seen timestamps.
+    /// Register and persist an outgoing transaction before broadcasting it so
+    /// subsequent proposals do not select its inputs again. The caller supplies
+    /// trusted chain data and timestamps used by BDK to resolve conflicts.
+    pub fn apply_unconfirmed_txs(
+        &mut self,
+        transactions: impl IntoIterator<Item = (Transaction, u64)>,
+    ) {
+        self.wallet.apply_unconfirmed_txs(transactions);
+        self.capture();
+    }
+
+    /// Record transactions evicted from the mempool, then persist public state.
+    /// The caller must establish eviction through its chain backend; a broadcast
+    /// timeout alone does not establish that a transaction cannot still confirm.
+    /// Use accurate, monotonically increasing observation timestamps.
+    pub fn apply_evicted_txs(&mut self, transactions: impl IntoIterator<Item = (Txid, u64)>) {
+        self.wallet.apply_evicted_txs(transactions);
+        self.capture();
+    }
+
     /// Build a proposal without signing. The application must show destination,
     /// amount, and actual fee and obtain confirmation before calling sign_payment.
+    /// Amounts cannot exceed Bitcoin's maximum supply. Requested fee rates must
+    /// not exceed [`Psbt::DEFAULT_MAX_FEE_RATE`], also enforced when signing.
     pub fn prepare_payment(
         &mut self,
         destination: &str,
         amount_sat: u64,
         sat_per_vbyte: u64,
     ) -> Result<Psbt, Error> {
-        if amount_sat == 0 || sat_per_vbyte == 0 {
+        if amount_sat == 0 || amount_sat > Amount::MAX_MONEY.to_sat() || sat_per_vbyte == 0 {
             return Err(Error::Payment);
         }
         let destination = Address::from_str(destination)
@@ -280,6 +323,9 @@ impl CodexWallet {
             .require_network(self.network)
             .map_err(|_| Error::Address)?;
         let fee = FeeRate::from_sat_per_vb(sat_per_vbyte).ok_or(Error::Payment)?;
+        if fee > Psbt::DEFAULT_MAX_FEE_RATE {
+            return Err(Error::Payment);
+        }
         let mut builder = self.wallet.build_tx();
         builder
             .add_recipient(destination.script_pubkey(), Amount::from_sat(amount_sat))
@@ -290,14 +336,24 @@ impl CodexWallet {
     }
 
     /// Sign only after the caller has reviewed this exact proposal. No broadcast occurs.
+    /// A failed call leaves the supplied PSBT unchanged, including its signatures.
     pub fn sign_payment(&self, proposal: &mut Psbt) -> Result<Transaction, Error> {
+        if proposal.inputs.len() != proposal.unsigned_tx.input.len()
+            || proposal.outputs.len() != proposal.unsigned_tx.output.len()
+        {
+            return Err(Error::Signing);
+        }
+        proposal.fee().map_err(|_| Error::Signing)?;
+        let mut signed = proposal.clone();
         let finalized = self
             .wallet
-            .sign(proposal, SignOptions::default())
+            .sign(&mut signed, SignOptions::default())
             .map_err(|_| Error::Signing)?;
         if !finalized {
             return Err(Error::Signing);
         }
-        proposal.clone().extract_tx().map_err(|_| Error::Signing)
+        let transaction = signed.clone().extract_tx().map_err(|_| Error::Signing)?;
+        *proposal = signed;
+        Ok(transaction)
     }
 }

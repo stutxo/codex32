@@ -137,6 +137,83 @@ fn randomness_failure_and_invalid_parameters_fail_closed() {
     }
 }
 
+// Public deterministic test bytes. Failure may occur after modifying output,
+// which is permitted by TryRngCore and can happen after earlier draws succeeded.
+struct PartiallyFailingRng {
+    fail_on_call: usize,
+    calls: usize,
+}
+
+impl TryRngCore for PartiallyFailingRng {
+    type Error = &'static str;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        let mut bytes = [0; 4];
+        self.try_fill_bytes(&mut bytes)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        let mut bytes = [0; 8];
+        self.try_fill_bytes(&mut bytes)?;
+        Ok(u64::from_le_bytes(bytes))
+    }
+
+    fn try_fill_bytes(&mut self, output: &mut [u8]) -> Result<(), Self::Error> {
+        self.calls += 1;
+        if self.calls == self.fail_on_call {
+            let written = output.len().div_ceil(2);
+            output[..written].fill(0xa5);
+            return Err("partial random-source failure");
+        }
+        output.fill(0x5a);
+        Ok(())
+    }
+}
+
+impl TryCryptoRng for PartiallyFailingRng {}
+
+#[test]
+fn partial_randomness_failure_never_returns_an_incomplete_backup() {
+    let id = "test".parse().unwrap();
+    for size in [16, 47, 64] {
+        let seed = Seed::from_bytes(&vec![42; size]).unwrap();
+        for k in [2, 9] {
+            for fail_on_call in 1..=usize::from(k) {
+                let mut rng = PartiallyFailingRng {
+                    fail_on_call,
+                    calls: 0,
+                };
+                assert_eq!(
+                    generate(size, id, k, 31, &mut rng).unwrap_err(),
+                    Error::Randomness
+                );
+                assert_eq!(rng.calls, fail_on_call);
+
+                // Splitting draws randomness only for the k-1 initial shares.
+                if fail_on_call < usize::from(k) {
+                    rng.calls = 0;
+                    assert_eq!(
+                        split(&seed, id, k, 31, &mut rng).unwrap_err(),
+                        Error::Randomness
+                    );
+                    assert_eq!(rng.calls, fail_on_call);
+                }
+            }
+            let mut rng = PartiallyFailingRng {
+                fail_on_call: 1,
+                calls: 0,
+            };
+            assert_eq!(
+                generate_share(size, id, k, ShareIndex::from_char('a').unwrap(), &mut rng)
+                    .unwrap_err(),
+                Error::Randomness
+            );
+            assert_eq!(rng.calls, 1);
+        }
+    }
+}
+
 #[test]
 fn recovery_rejects_duplicate_mismatched_and_wrong_number_of_shares() {
     let mut rng = ChaCha20Rng::from_seed([3; 32]);

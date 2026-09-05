@@ -57,6 +57,40 @@ fn multiply(mut a: u8, b: u8) -> u8 {
     result
 }
 
+/// Add two Bech32 symbols, as on the Codex32 addition volvelle.
+pub fn add_symbols(a: char, b: char) -> Result<char, Error> {
+    let a = bech32::Fe32::from_char(a).map_err(|_| Error::Character { position: 0 })?;
+    let b = bech32::Fe32::from_char(b).map_err(|_| Error::Character { position: 1 })?;
+    Ok(fe(a.to_u8() ^ b.to_u8()).to_char())
+}
+
+/// Multiply two Bech32 symbols, as on the translation/fusion volvelle.
+pub fn multiply_symbols(a: char, b: char) -> Result<char, Error> {
+    let a = bech32::Fe32::from_char(a).map_err(|_| Error::Character { position: 0 })?;
+    let b = bech32::Fe32::from_char(b).map_err(|_| Error::Character { position: 1 })?;
+    Ok(fe(multiply(a.to_u8(), b.to_u8())).to_char())
+}
+
+fn interpolation_weight(shares: &[Codex32], i: usize, at: ShareIndex) -> bech32::Fe32 {
+    let (mut numerator, mut denominator) = (fe(1), fe(1));
+    for (j, other) in shares.iter().enumerate() {
+        if i != j {
+            numerator *= fe(at.0 ^ other.metadata.index.0);
+            denominator *= fe(shares[i].metadata.index.0 ^ other.metadata.index.0);
+        }
+    }
+    numerator / denominator
+}
+
+/// Public translation factors in input order for exactly threshold-many shares.
+/// These are the factors used by recovery/derivation, not authentication of a set.
+pub fn interpolation_weights(shares: &[Codex32], at: ShareIndex) -> Result<Vec<char>, Error> {
+    validate(shares, true)?;
+    Ok((0..shares.len())
+        .map(|i| interpolation_weight(shares, i, at).to_char())
+        .collect())
+}
+
 fn interpolate(shares: &[Codex32], at: ShareIndex) -> Codex32 {
     if let Some(existing) = shares.iter().find(|s| s.metadata.index == at) {
         return existing.clone();
@@ -66,14 +100,7 @@ fn interpolate(shares: &[Codex32], at: ShareIndex) -> Codex32 {
     let mut payload = Zeroizing::new(vec![0; shares[0].payload.len()]);
     for (i, share) in shares.iter().enumerate() {
         // Indices and weights are public. Only payload multiplication handles secret data.
-        let (mut numerator, mut denominator) = (fe(1), fe(1));
-        for (j, other) in shares.iter().enumerate() {
-            if i != j {
-                numerator *= fe(at.0 ^ other.metadata.index.0);
-                denominator *= fe(share.metadata.index.0 ^ other.metadata.index.0);
-            }
-        }
-        let weight = (numerator / denominator).to_u8();
+        let weight = interpolation_weight(shares, i, at).to_u8();
         for (output, &symbol) in payload.iter_mut().zip(share.payload.iter()) {
             *output ^= multiply(symbol, weight);
         }

@@ -1,0 +1,23 @@
+name: Dependency advisories
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 8 * * 1'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install pinned toolchain
+        run: rustup show
+      - name: Install pinned advisory checker
+        run: cargo install cargo-audit --version 0.22.1 --locked
+      - name: Check locked dependencies against current advisories
+        run: cargo audit --deny warnings

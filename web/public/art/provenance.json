@@ -1,0 +1,84 @@
+{
+  "branch": "new-complete",
+  "commit": "8ae1268e40bcc37bb84be21b7a33ff2c34b1ac32",
+  "pdf_sha256": "9156c7ccf7dbf7fa5eb183af45296bfa132c348bd4583f737c1741482b92c236",
+  "assets": [
+    {
+      "file": "book-cover.png",
+      "width": 1224,
+      "height": 1584,
+      "bytes": 921322,
+      "sha256": "50b420f0ff7a6e1e64b9fbdcc629c070999a587480156a948ecfaa73f2612bf4"
+    },
+    {
+      "file": "cover-top-border.png",
+      "width": 987,
+      "height": 129,
+      "bytes": 45372,
+      "sha256": "41ac77d3c43c4cea34a788de8e884b138da5108c73c45ce940e5c186050a5b90"
+    },
+    {
+      "file": "cover-wizard.png",
+      "width": 678,
+      "height": 1023,
+      "bytes": 294396,
+      "sha256": "5f96bee6bf17ffe9165eceb4d96c29e08c3d767e6c8c1cd7d68fed833a66681d"
+    },
+    {
+      "file": "dragon.png",
+      "width": 1065,
+      "height": 1065,
+      "bytes": 768488,
+      "sha256": "4c590d238f2108a95b8ff80d71c3eb1ad5521a047aaa9da8f6d91eec58c8aa73"
+    },
+    {
+      "file": "illuminated-b.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 22843,
+      "sha256": "47466f1b18a445679630a4adead97c701437e5d0b23c876f337331dc2710e14f"
+    },
+    {
+      "file": "illuminated-c.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 18568,
+      "sha256": "0e304bfaa21f4b20b204c68ea16549356a721ae3df17f36a5ba0b53721f2eb26"
+    },
+    {
+      "file": "illuminated-f.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 12258,
+      "sha256": "cb3cfbc95656b261bd8b12818803987211d61d8100d9a69d8ea23e9285ac4610"
+    },
+    {
+      "file": "illuminated-t.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 22388,
+      "sha256": "0baf83b3839625f0b6b6f6f9b30e32e59a6ed1f8eed4ac1808ca5004d9c0d796"
+    },
+    {
+      "file": "potion.png",
+      "width": 531,
+      "height": 531,
+      "bytes": 89750,
+      "sha256": "37c990162492e2ee3539bc11a47496cde3da08dd4336d63a22eb4b48e78d620f"
+    },
+    {
+      "file": "sun.png",
+      "width": 534,
+      "height": 534,
+      "bytes": 153533,
+      "sha256": "64db9e0c7e6c1b601e722329372fb168fa6458a7b86f6cd93025aa69a358aa7c"
+    },
+    {
+      "file": "wheel-lock.png",
+      "width": 936,
+      "height": 936,
+      "bytes": 382631,
+      "sha256": "62e2688eff583b32881b9fd20b0b2a824134c565d8df1c184ae3c1d9e9e90375"
+    }
+  ]
+}

@@ -4,7 +4,7 @@ A simple Bitcoin wallet with BIP 93 backups, inspired by the illustrated [Shamir
 
 The idea: make creating, checking, keeping, and recovering physical key backups feel understandable and deliberate. Carry the book's visual character into an interface that helps people practice recovery before they need it.
 
-**Status: experimental Rust foundation.** Backup operations, a BDK wallet core, and WASM recovery bindings are implemented and tested. There is no end-user interface or mobile app yet. The wallet core enables test networks only; this code has not been audited for real funds.
+**Status: experimental Rust foundation and public practice website.** Backup operations, a BDK wallet core, and WASM recovery bindings are implemented and tested. The illustrated website exercises public examples; there is no full wallet interface or mobile app yet. The wallet core enables test networks only; this code has not been audited for real funds.
 
 ## Starting point
 
@@ -13,12 +13,35 @@ The product goal is a complete, simple wallet: create or restore, receive, send,
 | Crate | Implemented |
 | --- | --- |
 | `codex32-core` | Encode and validate BIP 93, generate/split seeds, derive shares, recover seeds |
-| `codex32-wallet` | BIP 84 account zero, restore from backups, receive/change addresses, public state persistence, payment proposals and signing |
+| `codex32-wallet` | BIP 86 Taproot account zero, restore from backups, receive/change addresses, public state persistence, payment proposals and signing |
 | `codex32-wasm` | Validate/recover backups and restore test wallets through JavaScript bindings |
 
 The backup crate covers 16–64 byte seeds, both checksum formats, and thresholds 2–9. It accepts exactly the threshold number of distinct shares for recovery. Checksum error correction is not implemented; invalid strings are rejected.
 
 ## Try the public practice wallet
+
+Visit the [volvelle workshop](https://stutxo.github.io/codex32/).
+
+The illustrated [web workbench](web/README.md) supports recovery from public shares,
+checksum checks, expected Signet address comparisons, and printable practice cards.
+It runs the Rust library in your browser and has no chain connection or payment flow.
+The home page opens on draggable paper wheels, guided checksum and recovery
+worksheets, and disposable test keys made with virtual dice or browser randomness.
+The original book artwork is reproduced with its MIT notices and artist credits;
+`/workbench` keeps the share checker and printable practice cards available.
+
+```sh
+cd web
+npm ci
+npm run dev
+```
+
+To rebuild its browser module after Rust changes, install the matching wasm-bindgen
+CLI and run `bash scripts/build-web-wasm.sh` from the repository root. Frontend checks
+are `npm --prefix web test`, `npm --prefix web run typecheck`, and
+`npm --prefix web run build`.
+
+For the command-line example:
 
 Use the pinned Rust toolchain and a C compiler. On NixOS, enter `nix-shell` first.
 
@@ -32,8 +55,10 @@ This restores the published BIP 93 NAME example and prints regtest addresses. Al
 
 ```sh
 cargo test --locked --workspace
+cargo test --locked --workspace --release
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
+python3 scripts/check-conformance.py
 ```
 
 For WASM, install the runner matching `Cargo.lock`, then exercise Rust and actual JavaScript calls in Node:
@@ -59,6 +84,8 @@ The script creates a temporary regtest node with P2P networking disabled, restor
 
 See [validation details](docs/validation.md) for coverage and [the API guide](docs/api.md) for library use.
 
+The [mainnet readiness record](docs/mainnet-readiness.md) separates completed library checks from the remaining release and integration requirements. Passing tests does not establish a production security review.
+
 ## Application direction
 
 A browser prototype can exercise public fixtures and test networks. Native mobile is the current recommendation for the first real-funds application; the launch platform has not been selected.
@@ -75,4 +102,4 @@ A browser prototype can exercise public fixtures and test networks. Native mobil
 - [Upstream wallet developer guide](https://github.com/BlockstreamResearch/codex32/blob/master/docs/wallets.md)
 - [Rust reference implementation](https://github.com/apoelstra/rust-codex32)
 
-This is an independent project using `codex32` as its working name. No affiliation with the original authors is implied. The pinned BIP text and its derived public fixtures are included with [BSD-3-Clause attribution](tests/fixtures/LICENSE-BIP93); no upstream artwork is included. Dependency licenses remain with their authors.
+This is an independent project using `codex32` as its working name. No affiliation with the original authors is implied. The pinned BIP text and its derived public fixtures are included with [BSD-3-Clause attribution](tests/fixtures/LICENSE-BIP93). The workshop reproduces original book artwork under its MIT notices; [artwork provenance and credits](web/ARTWORK.md) record the sources and adaptations. Dependency licenses remain with their authors.

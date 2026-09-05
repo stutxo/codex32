@@ -82,7 +82,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     let fee = proposal.fee()?.to_sat();
     assert!(fee > 0 && fee < 10_000);
     let signed = wallet.sign_payment(&mut proposal)?;
+    // Record and persist the outgoing spend before the driver broadcasts it.
+    // The timestamp is fixed public test data; a chain adapter supplies real observations.
+    wallet.apply_unconfirmed_txs([(signed.clone(), 1_000)]);
+    assert_eq!(wallet.confirmed_balance_sat(), 0);
+    assert_eq!(wallet.total_balance_sat(), 75_000_000 - fee);
     std::fs::write(&state_path, wallet.export_public_state()?)?;
+    drop(wallet);
+    let mut wallet = CodexWallet::load(
+        &seed,
+        Network::Regtest,
+        &std::fs::read_to_string(&state_path)?,
+    )?;
+    assert_eq!(wallet.total_balance_sat(), 75_000_000 - fee);
+    assert!(
+        wallet
+            .prepare_payment(
+                command["destination"]
+                    .as_str()
+                    .ok_or("missing destination")?,
+                80_000_000,
+                2,
+            )
+            .is_err()
+    );
     emit(
         json!({"phase": "signed", "transaction": serialize_hex(&signed), "txid": signed.compute_txid().to_string(), "fee_sat": fee}),
     );

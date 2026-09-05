@@ -1,0 +1,32 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_backup_free: (a: number, b: number) => void;
+export const __wbg_recoverywallet_free: (a: number, b: number) => void;
+export const addSymbols: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const backup_exportText: (a: number) => [number, number];
+export const backup_identifier: (a: number) => [number, number];
+export const backup_index: (a: number) => [number, number];
+export const backup_new: (a: number, b: number) => [number, number, number];
+export const backup_seedBytes: (a: number) => number;
+export const backup_threshold: (a: number) => number;
+export const createPracticeShare: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const deriveBackup: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const interpolationWeights: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const multiplySymbols: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const recoverBackup: (a: number, b: number) => [number, number, number];
+export const recoverywallet_address: (a: number, b: number, c: any) => [number, number, number, number];
+export const recoverywallet_exportPublicState: (a: number) => [number, number, number, number];
+export const recoverywallet_new: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const recoverywallet_nextReceiveAddress: (a: number) => [number, number];
+export const rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
+export const rustsecp256k1_v0_10_0_default_illegal_callback_fn: (a: number, b: number) => void;
+export const rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
+export const rustsecp256k1_v0_10_0_context_create: (a: number) => number;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __externref_table_alloc: () => number;
+export const __wbindgen_start: () => void;

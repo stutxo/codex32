@@ -32,7 +32,7 @@ No package publication or registry name availability is assumed.
 
 ## Reuse assessment
 
-The current [bech32 documentation](https://docs.rs/bech32/0.12.0/bech32/) explicitly demonstrates a Codex32 checksum implementation and exposes finite-field and checksum primitives. This makes a focused BIP 93 layer over existing primitives a promising approach. It does not provide a complete BIP 93 wallet API; using its ordinary Bech32 decoder is not sufficient to implement all BIP 93 semantics.
+The implementation uses [bech32 0.12.0](https://docs.rs/bech32/0.12.0/bech32/), the `rust-bitcoin/rust-bech32` crate, for the generic BCH checksum engine and finite-field primitives. The local `Checksum` implementations provide BIP 93's constants and checksum lengths; the remaining layer enforces BIP 93 headers, case, seed lengths, padding, and share rules. Secret payload interpolation uses a small fixed-operation multiplication routine instead of secret-indexed multiplication tables, checked against `bech32` for all 1,024 input pairs. This is broadly the architecture proposed by the upstream Rust reference's planned rewrite. It does not claim end-to-end constant-time behavior.
 
 The [original Rust reference](https://github.com/apoelstra/rust-codex32) is a useful implementation to inspect and compare against. Its README still describes the code as rough and discusses a future rewrite around bech32. Assess the actual code and tests before choosing to depend on it, extend it, or implement the missing layer ourselves. Reusing code does not establish its security.
 

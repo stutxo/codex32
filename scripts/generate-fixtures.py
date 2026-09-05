@@ -10,14 +10,10 @@ import json
 from pathlib import Path
 import re
 
+from bip93_reference import SOURCE_SHA256, load_reference
+
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_SHA256 = "45b1758805014b121145765c4e551486347433c7872e1b3277c26815728be5a5"
-source = (ROOT / "tests/fixtures/bip-0093.mediawiki").read_bytes()
-assert hashlib.sha256(source).hexdigest() == SOURCE_SHA256
-text = source.decode()
-reference = {}
-for snippet in re.findall(r'<source lang="python">(.*?)</source>', text, re.S):
-    exec(compile(snippet, "pinned-bip93-reference", "exec"), reference)
+text, reference = load_reference()
 
 encode = reference["ms32_encode"]
 alphabet = reference["CHARSET"]

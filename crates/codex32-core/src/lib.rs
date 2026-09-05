@@ -8,6 +8,9 @@ mod checksum;
 mod sharing;
 mod types;
 
-pub use sharing::{derive_share, generate, generate_share, recover, split};
+pub use sharing::{
+    add_symbols, derive_share, generate, generate_share, interpolation_weights, multiply_symbols,
+    recover, split,
+};
 pub use types::{Codex32, Error, Identifier, Metadata, Seed, ShareIndex};
 pub use zeroize::Zeroizing;

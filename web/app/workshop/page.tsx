@@ -1,0 +1,10 @@
+import type { Metadata } from 'next';
+import Workshop from './workshop';
+export const metadata: Metadata = {
+  title: 'The volvelle workshop · Codex32',
+  description:
+    'Turn the Codex32 paper wheels, follow the worksheets, and make disposable educational test keys.',
+};
+export default function Page() {
+  return <Workshop />;
+}

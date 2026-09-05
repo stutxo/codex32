@@ -111,6 +111,49 @@ fn python_reference_covers_every_seed_size_and_threshold() {
 }
 
 #[test]
+fn recovery_and_derivation_are_independent_of_input_order() {
+    for case in fixtures().reference_cases {
+        if ![16, 47, 64].contains(&(case.hex.len() / 2)) {
+            continue;
+        }
+        let shares: Vec<Codex32> = case.shares.iter().map(|s| s.parse().unwrap()).collect();
+        let k = usize::from(shares[0].metadata().threshold);
+        let mut inputs = shares[..k].to_vec();
+        for _ in 0..k {
+            inputs.rotate_left(1);
+            for reversed in [false, true] {
+                let mut permutation = inputs.clone();
+                if reversed {
+                    permutation.reverse();
+                }
+                assert_eq!(&*recover(&permutation).unwrap().export(), &case.secret);
+                let derived = derive_share(&permutation, shares[k].metadata().index).unwrap();
+                assert_eq!(&*derived.export(), &case.shares[k]);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_secret_can_replace_any_input_when_deriving_a_share() {
+    for case in fixtures().reference_cases {
+        if ![16, 47, 64].contains(&(case.hex.len() / 2)) {
+            continue;
+        }
+        let shares: Vec<Codex32> = case.shares.iter().map(|s| s.parse().unwrap()).collect();
+        let k = usize::from(shares[0].metadata().threshold);
+        let secret: Codex32 = case.secret.parse().unwrap();
+        for position in 0..k {
+            let mut inputs = shares[..k].to_vec();
+            let removed_index = inputs[position].metadata().index;
+            inputs[position] = secret.clone();
+            let derived = derive_share(&inputs, removed_index).unwrap();
+            assert_eq!(&*derived.export(), &case.shares[position]);
+        }
+    }
+}
+
+#[test]
 fn official_cash_shares_recover_from_every_three_of_five() {
     let shares: Vec<Codex32> = fixtures()
         .valid
