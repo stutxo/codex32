@@ -16,7 +16,7 @@ wallet.dat
 # Generated files and dependencies if introduced later
 node_modules/
 dist/
-target/
+/target/
 coverage/
 __pycache__/
 *.log
