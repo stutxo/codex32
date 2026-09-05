@@ -77,15 +77,26 @@ with A4/Letter-friendly margins.
 
 An optional `document.modelContext` tool exposes only public practice recovery.
 Its pure contract has automated tests. No supported browser WebMCP context was
-available to verify registration and live page state. Browser interaction, visual,
-and physical print testing were not performed.
+available to verify registration and live page state. A Chromium smoke test of
+the root-domain export verified the new-key default, enabled create-button
+contrast, actual WASM loading, public-example recovery and its three addresses,
+and both legacy redirects without browser or internal request errors. Visual
+review across browsers and physical print testing were not performed.
 
 ## GitHub Pages
 
 The repository's main workflow publishes `dist/client` to GitHub Pages after the
 Rust, WASM, and website checks pass. Pull requests run verification without publishing.
-The Pages configuration supplies `NEXT_PUBLIC_BASE_PATH`: `/codex32` for
-`https://stutxo.github.io/codex32/`, or an empty value for root hosting.
+The Pages configuration supplies `NEXT_PUBLIC_BASE_PATH`: an empty value for
+`https://codex32.com/`, or `/codex32` when hosting at the default
+`https://stutxo.github.io/codex32/` address without a custom domain.
+
+To reproduce the custom-domain build locally:
+
+```sh
+NEXT_PUBLIC_BASE_PATH='' npm run build
+NEXT_PUBLIC_BASE_PATH='' npm run check:export
+```
 
 To reproduce the project-path build locally:
 
@@ -103,9 +114,17 @@ requests omitting the base path and trailing-slash normalization. It also remove
 the redundant base-path directory from exported framework assets. Review these
 scripts when upgrading Vinext; the workaround fails if its expected source changes.
 
-When codex32.com is ready, verify ownership in GitHub, configure its DNS and the
-repository's Pages custom domain, then rerun the workflow. The Pages action will
-supply the new root path automatically. No custom domain is configured by this change.
+The custom-domain configuration uses `codex32.com` in the repository's Pages
+settings, GitHub Pages A/AAAA records for the apex, and a `www` CNAME pointing to
+`stutxo.github.io` (without a repository path). Preserve unrelated DNS records,
+including email forwarding. Configure the Pages domain before changing DNS, and
+rerun the workflow after changing the domain so it builds for the new root path.
+GitHub manages the HTTPS certificate and redirects `www` to the apex; enable
+HTTPS enforcement once the certificate is ready.
+
+This repository publishes through GitHub Actions. Its custom domain is managed in
+Pages settings; a source `CNAME` file is ignored by this publishing method.
+See GitHub's [custom-domain documentation](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
 
 ## Credits
 

@@ -20,7 +20,7 @@ The backup crate covers 16–64 byte seeds, both checksum formats, and threshold
 
 ## Try the public practice wallet
 
-Visit the [volvelle workshop](https://stutxo.github.io/codex32/).
+Visit the [volvelle workshop](https://codex32.com/).
 
 The illustrated [web workbench](web/README.md) supports recovery from public shares,
 checksum checks, expected Signet address comparisons, and printable practice cards.

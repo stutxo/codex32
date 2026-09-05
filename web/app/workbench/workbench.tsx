@@ -656,7 +656,7 @@ export function PracticeCards() {
           <footer>
             Source: BIP93, Test vector 2 · bitcoin/bips · BSD-3-Clause
             <br />
-            Companion: stutxo.github.io/codex32
+            Companion: codex32.com
           </footer>
         </article>
       ))}
