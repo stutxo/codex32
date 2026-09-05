@@ -39,9 +39,12 @@ when using the repository's Nix shell.
 in both orders, fixed independently derived address expectations, invalid choices,
 checksum and case failures, formatting, secret-index handling, and the optional
 agent action contract. It also tests rejection of an incorrect derived address.
-`npm run typecheck` checks the frontend integration.
+`npm run typecheck` checks the frontend integration. Primary actions share one
+button component with explicit native appearance and readable enabled/disabled
+colors. Regressions check its rendered contrast without a stylesheet and enforce
+its use throughout the workshop and workbench.
 
-The 28 integration tests also check all 1,024 additions and multiplications,
+The 30 automated tests also check all 1,024 additions and multiplications,
 physical alignment on both multiplication faces, 29,760 pair/target weight cases,
 all cells in four published recovery/derivation lessons, eight independent checksum
 traces, fresh sessions, malformed WASM arguments, unbiased sampling, rejected dice

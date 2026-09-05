@@ -10,7 +10,7 @@
     "build": "node scripts/prepare-vinext.mjs && vinext build && node scripts/normalize-static-export.mjs",
     "check:export": "node scripts/check-static-export.mjs",
     "start": "vinext start",
-    "lint": "oxlint app components/book-credits.tsx components/book-heading.tsx lib/engine.ts lib/practice.ts lib/webmcp.ts lib/workshop.ts lib/workshop-flow.ts lib/public-asset.ts tests vite.config.ts next.config.ts",
+    "lint": "oxlint app components/book-credits.tsx components/book-heading.tsx components/book-button.ts lib/engine.ts lib/practice.ts lib/webmcp.ts lib/workshop.ts lib/workshop-flow.ts lib/public-asset.ts tests vite.config.ts next.config.ts",
     "format": "oxfmt",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"

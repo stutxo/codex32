@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import BookButton from '@/components/book-button';
 import { publicAsset } from '@/lib/public-asset';
 import { flushSync } from 'react-dom';
 import {
@@ -230,13 +231,12 @@ export default function Workbench({ active }: { active: boolean }) {
                   </label>
                 ))}
               </div>
-              <button
-                className="primary-button"
+              <BookButton
                 disabled={!ready || selected.length !== 2}
                 onClick={() => void runRecovery(selected).catch(() => {})}
               >
                 Recover practice secret <ArrowRight size={18} />
-              </button>
+              </BookButton>
               <output className="quiet-line">
                 {ready ? (
                   <>
@@ -418,13 +418,9 @@ export default function Workbench({ active }: { active: boolean }) {
                   A typo
                 </button>
               </div>
-              <button
-                className="primary-button"
-                disabled={!ready}
-                onClick={() => void inspect()}
-              >
+              <BookButton disabled={!ready} onClick={() => void inspect()}>
                 Check share <ShieldCheck size={18} />
-              </button>
+              </BookButton>
               <p className="quiet-line">
                 <ShieldCheck size={15} /> Checked locally. Inputs are not saved
                 by this app.
@@ -571,9 +567,9 @@ export default function Workbench({ active }: { active: boolean }) {
                   I.
                 </li>
               </ol>
-              <button className="primary-button" onClick={() => window.print()}>
+              <BookButton onClick={() => window.print()}>
                 <Printer size={18} /> Print three practice cards
-              </button>
+              </BookButton>
               <p className="quiet-line">
                 Black ink friendly · Public examples only
               </p>

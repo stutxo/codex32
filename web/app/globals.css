@@ -340,7 +340,8 @@ textarea {
   border-radius: 2px;
 }
 .primary-button:not(:disabled):hover {
-  background: #362b62;
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
 }
 .quiet-line {
   display: flex;

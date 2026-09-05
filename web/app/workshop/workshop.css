@@ -992,18 +992,8 @@
   flex-shrink: 0;
 }
 .workshop-shell .create-backup-button {
-  appearance: none;
-  background: #493d78;
-  color: #fff9e9;
-  border: 2px solid #493d78;
-  border-radius: 2px;
-  opacity: 1;
   min-height: 52px;
   font-size: 1rem;
-}
-.workshop-shell .create-backup-button:hover {
-  outline: 2px solid #493d78;
-  outline-offset: 3px;
 }
 .create-backup-inline {
   margin-bottom: 15px;

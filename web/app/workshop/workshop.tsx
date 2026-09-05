@@ -1,5 +1,6 @@
 'use client';
 import Image from 'next/image';
+import BookButton from '@/components/book-button';
 import { publicAsset } from '@/lib/public-asset';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -269,14 +270,10 @@ function Lesson({
                 >
                   <WandSparkles size={15} /> Align for me
                 </button>
-                <button
-                  className="primary-button"
-                  disabled={!aligned}
-                  onClick={record}
-                >
+                <BookButton disabled={!aligned} onClick={record}>
                   {step === 4 ? 'Write this character' : 'Record this result'}{' '}
                   <ArrowRight size={16} />
-                </button>
+                </BookButton>
               </div>
               <output
                 className={
@@ -385,9 +382,9 @@ function Lesson({
               </span>
               <code>{grouped(lesson.output)}</code>
               {target === 'D' && (
-                <button className="primary-button" onClick={onComplete}>
+                <BookButton onClick={onComplete}>
                   Continue to recovery <ArrowRight size={16} />
-                </button>
+                </BookButton>
               )}
               {target === 'S' && (
                 <>
@@ -579,8 +576,7 @@ function ChecksumLesson({
           >
             <ArrowLeft size={15} /> Back
           </button>
-          <button
-            className="primary-button"
+          <BookButton
             onClick={() => (done ? onComplete() : advance(cursor + 1))}
           >
             {done
@@ -589,7 +585,7 @@ function ChecksumLesson({
                 ? 'Finish checksum and continue'
                 : 'Next row'}{' '}
             <ArrowRight size={16} />
-          </button>
+          </BookButton>
         </div>
         <button
           className="text-button"
@@ -721,13 +717,9 @@ export default function Workshop() {
   }
   function createButton() {
     return (
-      <button
-        className="primary-button create-backup-button"
-        style={{ backgroundColor: '#493d78', color: '#fff9e9' }}
-        onClick={fresh}
-      >
+      <BookButton className="create-backup-button" onClick={fresh}>
         Create my test backup <ArrowRight size={17} />
-      </button>
+      </BookButton>
     );
   }
   return (
