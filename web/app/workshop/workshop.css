@@ -991,7 +991,55 @@
 .random-continue .primary-button {
   flex-shrink: 0;
 }
+.workshop-shell .create-backup-button {
+  appearance: none;
+  background: #493d78;
+  color: #fff9e9;
+  border: 2px solid #493d78;
+  border-radius: 2px;
+  opacity: 1;
+  min-height: 52px;
+  font-size: 1rem;
+}
+.workshop-shell .create-backup-button:hover {
+  outline: 2px solid #493d78;
+  outline-offset: 3px;
+}
+.create-backup-inline {
+  margin-bottom: 15px;
+}
+.workshop-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.workshop-tabs {
+  flex-wrap: wrap;
+}
+.embedded-workbench {
+  padding-top: 24px;
+}
+.workbench-intro {
+  margin-bottom: 24px;
+}
+.workbench-intro h2 {
+  margin: 0 0 8px;
+}
+@media print {
+  .workshop-shell[data-active-view='workbench'] {
+    display: none !important;
+  }
+}
 @media (max-width: 680px) {
+  .workshop-header-actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  .workshop-tabs .workbench-tab {
+    grid-column: 1 / -1;
+  }
   .random-continue {
     flex-direction: column;
     align-items: stretch;

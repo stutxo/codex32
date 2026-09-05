@@ -1,4 +1,4 @@
-export type Phase = 'random' | 'checksum' | 'derive' | 'recover';
+export type Phase = 'random' | 'checksum' | 'derive' | 'recover' | 'workbench';
 export type InitialIndex = 'A' | 'C';
 export type WorkshopFlow = {
   phase: Phase;
@@ -9,7 +9,7 @@ export type WorkshopFlow = {
   focus: 'stage' | 'result' | null;
 };
 export const initialFlow: WorkshopFlow = {
-  phase: 'recover',
+  phase: 'random',
   checksumIndex: 'A',
   checksums: { A: false, C: false },
   notice: '',
@@ -62,6 +62,7 @@ export function workshopFlow(
     case 'published-example':
       return {
         ...initialFlow,
+        phase: 'recover',
         checksums: { A: false, C: false },
         notice: 'The published example is ready to recover.',
         navigation,

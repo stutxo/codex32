@@ -5,6 +5,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import Link from 'next/link';
 import BookCredits from '@/components/book-credits';
 import BookHeading from '@/components/book-heading';
+import Workbench, { PracticeCards } from '../workbench/workbench';
 import {
   ArrowLeft,
   ArrowRight,
@@ -628,10 +629,8 @@ export default function Workshop() {
     let mounted = true;
     void loadEngine()
       .then((value) => {
-        const initial = publishedSession(value);
         if (mounted) {
           setEngine(value);
-          setSession(initial);
         }
       })
       .catch(() => {
@@ -700,426 +699,461 @@ export default function Workshop() {
   }, [flow.navigation, flow.focus, flow.phase]);
   const pair = useMemo(() => pairText.split(',') as Pair, [pairText]);
   const initialPair = useMemo<Pair>(() => ['A', 'C'], []);
+  useEffect(() => {
+    if (window.location.hash === '#workbench') {
+      dispatchFlow({ type: 'navigate', phase: 'workbench' });
+    }
+  }, []);
+  function loadExample() {
+    if (!engine) return;
+    if (session?.kind === 'published') {
+      dispatchFlow({ type: 'navigate', phase: 'recover', reveal: true });
+      return;
+    }
+    try {
+      setSession(publishedSession(engine));
+      dispatchFlow({ type: 'published-example' });
+      setPairText('A,C');
+      setError('');
+    } catch {
+      setError('The published example could not be verified.');
+    }
+  }
+  function createButton() {
+    return (
+      <button
+        className="primary-button create-backup-button"
+        style={{ backgroundColor: '#493d78', color: '#fff9e9' }}
+        onClick={fresh}
+      >
+        Create my test backup <ArrowRight size={17} />
+      </button>
+    );
+  }
   return (
-    <main ref={workshopElement} className="site-shell workshop-shell">
-      <a className="skip-link" href="#workshop">
-        Skip to workshop
-      </a>
-      <header className="masthead">
-        <Link className="wordmark" href="/">
-          <Image
-            unoptimized
-            className="book-mark"
-            src={publicAsset('/art/sun.png')}
-            width="38"
-            height="38"
-            alt=""
-          />{' '}
-          Codex<span>32</span>
-        </Link>
-        <Link className="back-to-workbench" href="/workbench">
-          <ArrowLeft size={16} /> Recovery workbench
-        </Link>
-        <span className="practice-badge">
-          <ShieldCheck size={16} /> Educational edition
-        </span>
-      </header>
-      <div className="book-border" aria-hidden="true" />
-      <div className="title-row workshop-title">
-        <div>
-          <p className="eyebrow">THE PAPER COMPUTER, IN YOUR HANDS</p>
-          <BookHeading level={1} text="The volvelle workshop" />
-        </div>
-        <a
-          className="original-book-link"
-          href={wheelData.sources.paper}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Read the original Codex32 book"
-        >
-          <Image
-            unoptimized
-            src={publicAsset('/art/book-cover.png')}
-            width="62"
-            height="80"
-            alt="Original Codex32 book cover"
-          />
+    <>
+      <main
+        ref={workshopElement}
+        className="site-shell workshop-shell"
+        data-active-view={phase}
+      >
+        <a className="skip-link" href="#workshop">
+          Skip to workshop
         </a>
-      </div>
-      <div className="practice-notice">
-        <ShieldCheck size={18} />
-        <p>
-          Disposable test keys only. Never enter a real backup or use these keys
-          for funds. Fresh sessions disappear when you reload.
-        </p>
-      </div>
-      <div className="session-bar">
-        <span>
-          <span className="session-dot" />
-          {session?.kind === 'fresh'
-            ? 'Your fresh test key'
-            : 'Published NAME example'}
-          <small>128 bits · 2-of-3 · Signet</small>
-        </span>
-        <div>
-          {session?.kind === 'fresh' && (
+        <header className="masthead">
+          <Link className="wordmark" href="/">
+            <Image
+              unoptimized
+              className="book-mark"
+              src={publicAsset('/art/sun.png')}
+              width="38"
+              height="38"
+              alt=""
+            />{' '}
+            Codex<span>32</span>
+          </Link>
+          <div className="workshop-header-actions">
             <button
               className="text-button"
-              onClick={() => {
-                if (engine) {
-                  try {
-                    setSession(publishedSession(engine));
-                    dispatchFlow({ type: 'published-example' });
-                    setPairText('A,C');
-                    setDraft('');
-                    setDice(null);
-                    setError('');
-                  } catch {
-                    setError('The published example could not be verified.');
-                  }
-                }
-              }}
+              disabled={!engine}
+              onClick={loadExample}
             >
-              Use published example
+              Load example
             </button>
-          )}
-          <button
-            className="secondary-button"
-            onClick={() =>
-              dispatchFlow({ type: 'navigate', phase: 'random', reveal: true })
-            }
-          >
-            <Dices size={16} /> Make a test key
-          </button>
-        </div>
-      </div>
-      {error && (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
-      )}
-      {!engine || !session ? (
-        <div className="workshop-loading" aria-live="polite">
-          {error
-            ? 'Reload the page to load the workshop.'
-            : 'Opening the paper computer…'}
-        </div>
-      ) : (
-        <Tabs
-          value={phase}
-          onValueChange={(value) =>
-            dispatchFlow({ type: 'navigate', phase: value as Phase })
-          }
-          id="workshop"
-        >
-          <TabsList
-            className="chapter-tabs workshop-tabs"
-            aria-label="Workshop stages"
-          >
-            <TabsTrigger value="random">
-              <span>I.</span> Random characters
-            </TabsTrigger>
-            <TabsTrigger value="checksum">
-              <span>II.</span> Checksum
-            </TabsTrigger>
-            <TabsTrigger value="derive">
-              <span>III.</span> Derive D
-            </TabsTrigger>
-            <TabsTrigger value="recover">
-              <span>IV.</span> Recover S
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="random" data-stage="random" keepMounted>
-            {phase === 'random' && (
-              <output className="stage-announcement">{flow.notice}</output>
+            {phase !== 'random' && (
+              <button
+                className="secondary-button"
+                onClick={() =>
+                  dispatchFlow({
+                    type: 'navigate',
+                    phase: 'random',
+                    reveal: true,
+                  })
+                }
+              >
+                <Dices size={16} /> Make a new key
+              </button>
             )}
-            <div className="random-spread">
-              <section className="worksheet-page">
-                <div className="running-head">
-                  <span>FRESH INITIAL SHARES</span>
-                  <span>NO REAL FUNDS</span>
-                </div>
-                <BookHeading text="Fresh initial shares." />
-                <p className="serif-copy">
-                  Two independent strings become initial shares A and C. Each
-                  needs 26 random characters. The two shares together define a
-                  fresh 128-bit test seed.
-                </p>
-                <div className="random-share-drafts">
-                  {['A', 'C'].map((label, row) => (
-                    <div key={label}>
-                      <div>
-                        <strong>Share {label}</strong>
-                        <span>
-                          {Math.min(26, Math.max(0, draft.length - row * 26))} /
-                          26 characters
-                        </span>
+          </div>
+        </header>
+        <div className="book-border" aria-hidden="true" />
+        <div className="title-row workshop-title">
+          <div>
+            <p className="eyebrow">THE PAPER COMPUTER, IN YOUR HANDS</p>
+            <BookHeading level={1} text="The volvelle workshop" />
+          </div>
+          <a
+            className="original-book-link"
+            href={wheelData.sources.paper}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Read the original Codex32 book"
+          >
+            <Image
+              unoptimized
+              src={publicAsset('/art/book-cover.png')}
+              width="62"
+              height="80"
+              alt="Original Codex32 book cover"
+            />
+          </a>
+        </div>
+        <div className="practice-notice">
+          <ShieldCheck size={18} />
+          <p>
+            Disposable test keys only. Never enter a real backup or use these
+            keys for funds. Fresh sessions disappear when you reload.
+          </p>
+        </div>
+        {error && (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        )}
+        {!engine ? (
+          <div className="workshop-loading" aria-live="polite">
+            {error
+              ? 'Reload the page to load the workshop.'
+              : 'Opening the paper computer…'}
+          </div>
+        ) : (
+          <Tabs
+            value={phase}
+            onValueChange={(value) =>
+              dispatchFlow({ type: 'navigate', phase: value as Phase })
+            }
+            id="workshop"
+          >
+            <TabsList
+              className="chapter-tabs workshop-tabs"
+              aria-label="Workshop stages"
+            >
+              <TabsTrigger value="random">
+                <span>I.</span> Make a new key
+              </TabsTrigger>
+              <TabsTrigger value="checksum" disabled={!session}>
+                <span>II.</span> Checksum
+              </TabsTrigger>
+              <TabsTrigger value="derive" disabled={!session}>
+                <span>III.</span> Derive D
+              </TabsTrigger>
+              <TabsTrigger value="recover" disabled={!session}>
+                <span>IV.</span> Recover S
+              </TabsTrigger>
+              <TabsTrigger value="workbench" className="workbench-tab">
+                Recovery workbench
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="random" data-stage="random" keepMounted>
+              {phase === 'random' && (
+                <output className="stage-announcement">{flow.notice}</output>
+              )}
+              <div className="random-spread">
+                <section className="worksheet-page">
+                  <div className="running-head">
+                    <span>FRESH INITIAL SHARES</span>
+                    <span>NO REAL FUNDS</span>
+                  </div>
+                  <BookHeading text="Fresh initial shares." />
+                  <p className="serif-copy">
+                    Two independent strings become initial shares A and C. Each
+                    needs 26 random characters. The two shares together define a
+                    fresh 128-bit test seed.
+                  </p>
+                  <div className="random-share-drafts">
+                    {['A', 'C'].map((label, row) => (
+                      <div key={label}>
+                        <div>
+                          <strong>Share {label}</strong>
+                          <span>
+                            {Math.min(26, Math.max(0, draft.length - row * 26))}{' '}
+                            / 26 characters
+                          </span>
+                        </div>
+                        <code>
+                          {Array.from(
+                            { length: 26 },
+                            (_, i) => draft[row * 26 + i] ?? '·',
+                          ).join(' ')}
+                        </code>
                       </div>
-                      <code>
-                        {Array.from(
-                          { length: 26 },
-                          (_, i) => draft[row * 26 + i] ?? '·',
-                        ).join(' ')}
-                      </code>
-                    </div>
-                  ))}
-                </div>
-                <Progress value={(draft.length / 52) * 100}>
-                  <ProgressLabel>Random characters</ProgressLabel>
-                  <ProgressValue>{() => `${draft.length} / 52`}</ProgressValue>
-                </Progress>
-                <div className="random-actions">
-                  <button
-                    className="secondary-button"
-                    disabled={draft.length >= 52}
-                    onClick={roll}
-                  >
-                    <Dices size={17} /> Roll five pairs
-                  </button>
+                    ))}
+                  </div>
+                  <Progress value={(draft.length / 52) * 100}>
+                    <ProgressLabel>Random characters</ProgressLabel>
+                    <ProgressValue>
+                      {() => `${draft.length} / 52`}
+                    </ProgressValue>
+                  </Progress>
+                  <div className="random-actions">
+                    <button
+                      className="secondary-button"
+                      disabled={draft.length >= 52}
+                      onClick={roll}
+                    >
+                      <Dices size={17} /> Roll five pairs
+                    </button>
+                    <button
+                      className="text-button"
+                      disabled={draft.length >= 52}
+                      onClick={fill}
+                    >
+                      Fill remaining characters <WandSparkles size={15} />
+                    </button>
+                  </div>
+
+                  <div className="create-backup-inline">
+                    {createButton()}
+                    <p className="worksheet-caption">
+                      Any remaining characters will be filled securely.
+                    </p>
+                  </div>
                   <button
                     className="text-button"
-                    disabled={draft.length >= 52}
-                    onClick={fill}
+                    disabled={!draft}
+                    onClick={() => {
+                      setDraft('');
+                      setDice(null);
+                    }}
                   >
-                    Fill remaining characters <WandSparkles size={15} />
+                    Clear these characters
                   </button>
-                </div>
-
-                <button
-                  className="text-button"
-                  disabled={!draft}
-                  onClick={() => {
-                    setDraft('');
-                    setDice(null);
-                  }}
-                >
-                  Clear these characters
-                </button>
-                <p className="worksheet-caption">
-                  Randomness comes from your browser’s cryptographic random
-                  source. This educational page displays the material openly and
-                  is not a key vault.
-                </p>
-              </section>
-              <section className="dice-page">
-                <div className="running-head">
-                  <span>THE DICE EXERCISE</span>
-                  <span>5 BITS → 1 CHARACTER</span>
-                </div>
-                <div className="dice-illumination">
-                  <Image
-                    unoptimized
-                    src={publicAsset('/art/cover-wizard.png')}
-                    width="124"
-                    height="187"
-                    alt="The wizard from the original Codex32 cover"
-                  />
-                  <div>
-                    <h2>Roll. Compare. Read.</h2>
-                  </div>
-                </div>
-                <p>
-                  Each set of five pairs makes one of the 52 characters. A
-                  higher second roll gives 1; a lower second roll gives 0. Ties
-                  are rolled again.
-                </p>
-                <div className="dice-tracks">
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <div className="dice-track" key={i}>
-                      <span>Pair {i + 1}</span>
-                      <span
-                        className="die"
-                        aria-label={
-                          dice
-                            ? `First roll ${dice.dice[i].first}`
-                            : 'First roll pending'
-                        }
-                      >
-                        {dice ? glyphs[dice.dice[i].first - 1] : '□'}
-                      </span>
-                      <ArrowRight size={17} />
-                      <span
-                        className="die"
-                        aria-label={
-                          dice
-                            ? `Second roll ${dice.dice[i].second}`
-                            : 'Second roll pending'
-                        }
-                      >
-                        {dice ? glyphs[dice.dice[i].second - 1] : '□'}
-                      </span>
-                      <strong>{dice ? dice.dice[i].bit : '·'}</strong>
-                    </div>
-                  ))}
-                </div>
-                <output className="dice-result">
-                  {dice ? (
-                    <>
-                      <code>{dice.bits}</code>
-                      <ArrowRight size={20} />
-                      <strong>{dice.character}</strong>
-                      <span>
-                        added to share {draft.length <= 26 ? 'A' : 'C'}
-                      </span>
-                    </>
-                  ) : (
-                    <span>Roll five pairs to make your first character.</span>
-                  )}
-                </output>
-                {dice && (
                   <p className="worksheet-caption">
-                    {dice.dice.reduce((sum, d) => sum + d.ties, 0)} tied pairs
-                    rerolled.
+                    Randomness comes from your browser’s cryptographic random
+                    source. This educational page displays the material openly
+                    and is not a key vault.
                   </p>
-                )}
-                <details className="technical-note">
-                  <summary>How does this relate to the paper exercise?</summary>
+                </section>
+                <section className="dice-page">
+                  <div className="running-head">
+                    <span>THE DICE EXERCISE</span>
+                    <span>5 BITS → 1 CHARACTER</span>
+                  </div>
+                  <div className="dice-illumination">
+                    <Image
+                      unoptimized
+                      src={publicAsset('/art/cover-wizard.png')}
+                      width="124"
+                      height="187"
+                      alt="The wizard from the original Codex32 cover"
+                    />
+                    <div>
+                      <h2>Roll. Compare. Read.</h2>
+                    </div>
+                  </div>
                   <p>
-                    The book uses comparisons between two rolls to remove bias.
-                    Here virtual dice use browser randomness, equal pairs are
-                    retried, and the five resulting bits select a character in
-                    the Bech32 alphabet.
+                    Each set of five pairs makes one of the 52 characters. A
+                    higher second roll gives 1; a lower second roll gives 0.
+                    Ties are rolled again.
                   </p>
-                  <p>
-                    “Fill remaining” samples uniform characters directly.
-                    Turning a volvelle performs calculations; it does not supply
-                    randomness.
-                  </p>
-                </details>
-              </section>
-            </div>
-            <div className="random-continue">
-              <div aria-live="polite">
-                <strong>{draft.length} of 52 characters ready</strong>
-                <p>
-                  {draft.length < 52
-                    ? `Creating your backup will securely fill the remaining ${52 - draft.length} characters.`
-                    : 'Both initial shares are ready. Next: calculate their checksums.'}
-                </p>
+                  <div className="dice-tracks">
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <div className="dice-track" key={i}>
+                        <span>Pair {i + 1}</span>
+                        <span
+                          className="die"
+                          aria-label={
+                            dice
+                              ? `First roll ${dice.dice[i].first}`
+                              : 'First roll pending'
+                          }
+                        >
+                          {dice ? glyphs[dice.dice[i].first - 1] : '□'}
+                        </span>
+                        <ArrowRight size={17} />
+                        <span
+                          className="die"
+                          aria-label={
+                            dice
+                              ? `Second roll ${dice.dice[i].second}`
+                              : 'Second roll pending'
+                          }
+                        >
+                          {dice ? glyphs[dice.dice[i].second - 1] : '□'}
+                        </span>
+                        <strong>{dice ? dice.dice[i].bit : '·'}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <output className="dice-result">
+                    {dice ? (
+                      <>
+                        <code>{dice.bits}</code>
+                        <ArrowRight size={20} />
+                        <strong>{dice.character}</strong>
+                        <span>
+                          added to share {draft.length <= 26 ? 'A' : 'C'}
+                        </span>
+                      </>
+                    ) : (
+                      <span>Roll five pairs to make your first character.</span>
+                    )}
+                  </output>
+                  {dice && (
+                    <p className="worksheet-caption">
+                      {dice.dice.reduce((sum, d) => sum + d.ties, 0)} tied pairs
+                      rerolled.
+                    </p>
+                  )}
+                  <details className="technical-note">
+                    <summary>
+                      How does this relate to the paper exercise?
+                    </summary>
+                    <p>
+                      The book uses comparisons between two rolls to remove
+                      bias. Here virtual dice use browser randomness, equal
+                      pairs are retried, and the five resulting bits select a
+                      character in the Bech32 alphabet.
+                    </p>
+                    <p>
+                      “Fill remaining” samples uniform characters directly.
+                      Turning a volvelle performs calculations; it does not
+                      supply randomness.
+                    </p>
+                  </details>
+                </section>
               </div>
-              <button className="primary-button" onClick={fresh}>
-                Create my test backup <ArrowRight size={17} />
-              </button>
-            </div>
-          </TabsContent>
-          <TabsContent value="checksum" data-stage="checksum" keepMounted>
-            {phase === 'checksum' && (
-              <output className="stage-announcement">{flow.notice}</output>
-            )}
-            <div className="stage-toolbar">
-              <p>Make the checksum by following the paper rows.</p>
-              <label htmlFor="checksum-share">
-                Initial share
-                <NativeSelect
-                  id="checksum-share"
-                  value={checksumIndex}
-                  onChange={(e) =>
-                    dispatchFlow({
-                      type: 'select-checksum',
-                      index: e.target.value as 'A' | 'C',
-                    })
-                  }
-                >
-                  <NativeSelectOption value="A">Share A</NativeSelectOption>
-                  <NativeSelectOption value="C">Share C</NativeSelectOption>
-                </NativeSelect>
-              </label>
-            </div>
-            {(['A', 'C'] as const).map((index) => (
-              <div
-                key={session.shares.A + session.shares.C + index}
-                hidden={checksumIndex !== index}
-              >
-                <ChecksumLesson
+              <div className="random-continue">
+                <div aria-live="polite">
+                  <strong>{draft.length} of 52 characters ready</strong>
+                  <p>
+                    {draft.length < 52
+                      ? `Creating your backup will securely fill the remaining ${52 - draft.length} characters.`
+                      : 'Both initial shares are ready. Next: calculate their checksums.'}
+                  </p>
+                </div>
+                {createButton()}
+              </div>
+            </TabsContent>
+            <TabsContent value="checksum" data-stage="checksum" keepMounted>
+              {phase === 'checksum' && (
+                <output className="stage-announcement">{flow.notice}</output>
+              )}
+              <div className="stage-toolbar">
+                <p>Make the checksum by following the paper rows.</p>
+                <label htmlFor="checksum-share">
+                  Initial share
+                  <NativeSelect
+                    id="checksum-share"
+                    value={checksumIndex}
+                    onChange={(e) =>
+                      dispatchFlow({
+                        type: 'select-checksum',
+                        index: e.target.value as 'A' | 'C',
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="A">Share A</NativeSelectOption>
+                    <NativeSelectOption value="C">Share C</NativeSelectOption>
+                  </NativeSelect>
+                </label>
+              </div>
+              {session &&
+                (['A', 'C'] as const).map((index) => (
+                  <div
+                    key={session.shares.A + session.shares.C + index}
+                    hidden={checksumIndex !== index}
+                  >
+                    <ChecksumLesson
+                      engine={engine}
+                      encoded={session.shares[index]}
+                      nextLabel={
+                        flow.checksums.A && flow.checksums.C
+                          ? 'Continue to share D'
+                          : `Continue to checksum ${index === 'A' ? 'C' : 'A'}`
+                      }
+                      onComplete={() =>
+                        dispatchFlow({ type: 'checksum-completed', index })
+                      }
+                    />
+                  </div>
+                ))}
+            </TabsContent>
+            <TabsContent value="derive" data-stage="derive" keepMounted>
+              {phase === 'derive' && (
+                <output className="stage-announcement">{flow.notice}</output>
+              )}
+              <div className="stage-toolbar">
+                <p>Use A and C to calculate D. No new randomness is needed.</p>
+                <span className="network-badge">A + C → D</span>
+              </div>
+              {session && (
+                <Lesson
+                  key={session.shares.A + session.shares.C + 'derive'}
                   engine={engine}
-                  encoded={session.shares[index]}
-                  nextLabel={
-                    flow.checksums.A && flow.checksums.C
-                      ? 'Continue to share D'
-                      : `Continue to checksum ${index === 'A' ? 'C' : 'A'}`
+                  session={session}
+                  pair={initialPair}
+                  target="D"
+                  onRestart={() =>
+                    dispatchFlow({ type: 'navigate', phase: 'derive' })
+                  }
+                  onComplete={() => {
+                    setPairText('C,D');
+                    dispatchFlow({ type: 'derivation-completed' });
+                  }}
+                />
+              )}
+            </TabsContent>
+            <TabsContent value="recover" data-stage="recover" keepMounted>
+              {phase === 'recover' && (
+                <output className="stage-announcement">{flow.notice}</output>
+              )}
+              <div className="stage-toolbar">
+                <p>
+                  Set one share aside. The other two recover the same secret.
+                </p>
+                <label htmlFor="recovery-pair">
+                  Use these shares
+                  <NativeSelect
+                    id="recovery-pair"
+                    value={pairText}
+                    onChange={(e) => {
+                      setPairText(e.target.value);
+                      dispatchFlow({ type: 'navigate', phase: 'recover' });
+                    }}
+                  >
+                    <NativeSelectOption value="A,C">
+                      A + C · set D aside
+                    </NativeSelectOption>
+                    <NativeSelectOption value="A,D">
+                      A + D · set C aside
+                    </NativeSelectOption>
+                    <NativeSelectOption value="C,D">
+                      C + D · set A aside
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </label>
+              </div>
+              {session && (
+                <Lesson
+                  key={session.shares.A + session.shares.C + pairText}
+                  engine={engine}
+                  session={session}
+                  pair={pair}
+                  target="S"
+                  onRestart={() =>
+                    dispatchFlow({ type: 'navigate', phase: 'recover' })
                   }
                   onComplete={() =>
-                    dispatchFlow({ type: 'checksum-completed', index })
+                    dispatchFlow({ type: 'recovery-completed' })
                   }
                 />
-              </div>
-            ))}
-          </TabsContent>
-          <TabsContent value="derive" data-stage="derive" keepMounted>
-            {phase === 'derive' && (
-              <output className="stage-announcement">{flow.notice}</output>
-            )}
-            <div className="stage-toolbar">
-              <p>Use A and C to calculate D. No new randomness is needed.</p>
-              <span className="network-badge">A + C → D</span>
-            </div>
-            <Lesson
-              key={session.shares.A + session.shares.C + 'derive'}
-              engine={engine}
-              session={session}
-              pair={initialPair}
-              target="D"
-              onRestart={() =>
-                dispatchFlow({ type: 'navigate', phase: 'derive' })
-              }
-              onComplete={() => {
-                setPairText('C,D');
-                dispatchFlow({ type: 'derivation-completed' });
-              }}
-            />
-          </TabsContent>
-          <TabsContent value="recover" data-stage="recover" keepMounted>
-            {phase === 'recover' && (
-              <output className="stage-announcement">{flow.notice}</output>
-            )}
-            <div className="stage-toolbar">
-              <p>Set one share aside. The other two recover the same secret.</p>
-              <label htmlFor="recovery-pair">
-                Use these shares
-                <NativeSelect
-                  id="recovery-pair"
-                  value={pairText}
-                  onChange={(e) => {
-                    setPairText(e.target.value);
-                    dispatchFlow({ type: 'navigate', phase: 'recover' });
-                  }}
-                >
-                  <NativeSelectOption value="A,C">
-                    A + C · set D aside
-                  </NativeSelectOption>
-                  <NativeSelectOption value="A,D">
-                    A + D · set C aside
-                  </NativeSelectOption>
-                  <NativeSelectOption value="C,D">
-                    C + D · set A aside
-                  </NativeSelectOption>
-                </NativeSelect>
-              </label>
-            </div>
-            <Lesson
-              key={session.shares.A + session.shares.C + pairText}
-              engine={engine}
-              session={session}
-              pair={pair}
-              target="S"
-              onRestart={() =>
-                dispatchFlow({ type: 'navigate', phase: 'recover' })
-              }
-              onComplete={() => dispatchFlow({ type: 'recovery-completed' })}
-            />
-          </TabsContent>
-        </Tabs>
-      )}
-      <footer className="site-footer">
-        <Link href="/workbench">
-          <ArrowLeft size={15} /> Back to the workbench
-        </Link>
-        <a href={wheelData.sources.paper} target="_blank" rel="noreferrer">
-          <BookOpen size={15} /> Read the original codex ↗
-        </a>
-        <span>LEARN · TURN · RECOVER</span>
-      </footer>
-      <BookCredits />
-    </main>
+              )}
+            </TabsContent>
+            <TabsContent value="workbench" data-stage="workbench" keepMounted>
+              <Workbench active={phase === 'workbench'} />
+            </TabsContent>
+          </Tabs>
+        )}
+        <footer className="site-footer">
+          <a href={wheelData.sources.paper} target="_blank" rel="noreferrer">
+            <BookOpen size={15} /> Read the original codex ↗
+          </a>
+          <span>LEARN · TURN · RECOVER</span>
+        </footer>
+        <BookCredits />
+      </main>
+      {phase === 'workbench' && <PracticeCards />}
+    </>
   );
 }

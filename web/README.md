@@ -5,8 +5,10 @@ The workbench uses built-in public examples and Signet address previews. The sha
 checker accepts text for local validation; do not enter real backups. There is no
 account, storage, chain connection, balance, signing, or broadcast flow.
 
-The home page `/` opens the volvelle workshop; `/workshop` remains an alias.
-The recovery workbench, share checker, and printable cards are at `/workbench`.
+The home page `/` starts with an empty new-key worksheet; the published example
+is loaded only when requested. The recovery workbench, share checker, and printable
+cards share the main page in a workbench tab. Previous `/workshop` and `/workbench`
+URLs redirect to the corresponding view on the main page.
 The workshop offers draggable Recovery, Translation, Addition, and Fusion wheels,
 keyboard controls, character-by-character derivation/recovery, and the paper's
 48-character checksum worksheet. Its dice exercise creates disposable fresh test
@@ -39,13 +41,14 @@ checksum and case failures, formatting, secret-index handling, and the optional
 agent action contract. It also tests rejection of an incorrect derived address.
 `npm run typecheck` checks the frontend integration.
 
-The 27 integration tests also check all 1,024 additions and multiplications,
+The 28 integration tests also check all 1,024 additions and multiplications,
 physical alignment on both multiplication faces, 29,760 pair/target weight cases,
 all cells in four published recovery/derivation lessons, eight independent checksum
 traces, fresh sessions, malformed WASM arguments, unbiased sampling, rejected dice
 ties/out-of-range bytes, randomness failure, and wheel position wrapping.
 They also cover creating backups from partial dice drafts, failure before replacing
-a session, automatic stage progression, alternate checksum order, and review/reset behavior.
+a session, automatic stage progression, alternate checksum order, the new-key default,
+and progress retained across workbench visits and review/reset actions.
 
 Regenerate the public wheel fixtures and display tables from the pinned BIP93 Python
 reference with `python3 scripts/generate-volvelle-fixtures.py` in the repository root.

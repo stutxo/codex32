@@ -32,7 +32,7 @@ Formatting and Clippy run on the workspace. CI covers debug and release native t
 ## Public practice website
 
 The illustrated `web/` companion uses the release Rust/WASM module for public example
-recovery, local share checks, and Signet address previews. Twenty-seven frontend integration
+recovery, local share checks, and Signet address previews. Twenty-eight frontend integration
 tests pass against that exact browser module, covering all three share pairs in both
 orders, published S equality, independently derived address expectations, failure on
 an incorrect address, invalid selections, display grouping, checksum and case errors,

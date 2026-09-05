@@ -20,6 +20,19 @@ engine.initSync({
   ),
 });
 
+await test('a visit starts at new-key creation and the workbench preserves an in-progress session', () => {
+  assert.equal(initialFlow.phase, 'random');
+  let flow = workshopFlow(initialFlow, { type: 'session-created' });
+  flow = workshopFlow(flow, { type: 'checksum-completed', index: 'A' });
+  const checksums = flow.checksums;
+  flow = workshopFlow(flow, { type: 'navigate', phase: 'workbench' });
+  assert.equal(flow.phase, 'workbench');
+  assert.equal(flow.focus, null);
+  flow = workshopFlow(flow, { type: 'navigate', phase: 'checksum' });
+  assert.equal(flow.checksums, checksums);
+  assert.equal(flow.checksumIndex, 'C');
+});
+
 await test('create backup keeps rolled characters and fills only what is missing, including after one roll', () => {
   const sample = 'QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L'.repeat(2).slice(0, 52);
   for (const count of [0, 1, 26, 51, 52]) {

@@ -28,7 +28,8 @@ It runs the Rust library in your browser and has no chain connection or payment 
 The home page opens on draggable paper wheels, guided checksum and recovery
 worksheets, and disposable test keys made with virtual dice or browser randomness.
 The original book artwork is reproduced with its MIT notices and artist credits;
-`/workbench` keeps the share checker and printable practice cards available.
+a recovery workbench tab keeps the share checker and printable practice cards
+available on the same page. New-key creation is the default; examples load on request.
 
 ```sh
 cd web
