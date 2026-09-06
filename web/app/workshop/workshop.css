@@ -1414,6 +1414,28 @@
 .lesson-intro .manual-instruction p {
   max-width: 78ch;
 }
+.lesson-next-action {
+  margin-top: 18px;
+}
+.lesson-next-action button {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+.lesson-next-action button svg {
+  flex-shrink: 0;
+}
+.lesson-intro .unknown-guide {
+  max-width: 78ch;
+  margin-top: 18px;
+}
+.guided-spread[data-unknown-task='true'] .manual-worksheet {
+  grid-column: 1 / -1;
+  position: static;
+  width: 100%;
+  max-width: 780px;
+  justify-self: center;
+}
 .share-header-help {
   margin-top: 18px;
   max-width: 800px;

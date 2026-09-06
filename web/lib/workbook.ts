@@ -119,7 +119,10 @@ export function checksumExercise(
     steps.push(
       {
         id: 'up-' + i + '-add',
-        title: 'Work upward through row ' + row.forwardStep + '.',
+        title:
+          i === 0
+            ? 'Start upward from SECRETSHARE32.'
+            : 'Work upward through row ' + row.forwardStep + '.',
         instruction:
           'Add the solved row to the table row, column by column. Codex32 addition reverses itself, so this uncovers the shifted row from your downward calculation.',
         kind: 'addition',

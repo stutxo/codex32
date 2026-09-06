@@ -149,13 +149,9 @@ export default function PaperReference({ step }: { step: ExerciseStep }) {
           </p>
           <PaperRow value="SECRETSHARE32" />
           <p>
-            The pink cells represent the checksum characters you have yet to
-            find.
-          </p>
-          <PaperRow value={'?'.repeat(13)} />
-          <p>
-            You will work down the worksheet, then solve upward from the given
-            row.
+            This is the fixed bottom row, supplied by the book. Your checksum is
+            still to be found: work down the worksheet, then solve upward from
+            this row.
           </p>
         </>
       ) : step.kind === 'lookup' ? (

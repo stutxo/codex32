@@ -55,6 +55,41 @@ export function checkColumn(exercise: Exercise, progress: LessonProgress) {
   };
 }
 
+export function isUnknownRow(step: ExerciseStep) {
+  return (
+    step.direction === 'down' &&
+    (step.kind === 'addition' || step.kind === 'shift') &&
+    /^\?{13}$/.test(step.answer)
+  );
+}
+
+// Pink squares are left blank on paper. Record their digital placeholders only
+// after the learner explicitly chooses to continue; never fill calculable cells.
+export function keepUnknown(exercise: Exercise, progress: LessonProgress) {
+  const step = exercise.steps[progress.cursor];
+  if (step && isUnknownRow(step)) {
+    return submitAnswer(exercise, { ...progress, draft: '?'.repeat(13) });
+  }
+  if (
+    !step ||
+    step.direction !== 'down' ||
+    step.kind !== 'addition' ||
+    (step.left?.[progress.column] !== '?' &&
+      step.right?.[progress.column] !== '?')
+  ) {
+    return { correct: false, complete: false, progress };
+  }
+  return checkColumn(exercise, {
+    ...progress,
+    draft: writeColumn(
+      progress.draft,
+      progress.column,
+      '?',
+      step.answer.length,
+    ),
+  });
+}
+
 export function stepGuide(
   step: ExerciseStep,
   checksum: boolean,

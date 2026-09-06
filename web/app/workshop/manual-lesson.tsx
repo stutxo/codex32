@@ -28,6 +28,8 @@ import {
   columnEntry,
   writeColumn,
   stepGuide,
+  isUnknownRow,
+  keepUnknown,
 } from '@/lib/workbook-guide';
 
 export default function ManualLesson({
@@ -55,7 +57,12 @@ export default function ManualLesson({
   const answerId = useId();
   const field = useRef<HTMLInputElement>(null);
   const instruction = useRef<HTMLElement>(null);
-  const lastLocation = useRef<{ at: number; active: boolean } | null>(null);
+  const lastLocation = useRef<{
+    at: number;
+    active: boolean;
+    unknown: boolean;
+  } | null>(null);
+  const focusPrompt = useRef(false);
   const at = example
     ? Math.min(progress.exampleCursor, exercise.steps.length - 1)
     : progress.cursor;
@@ -80,6 +87,9 @@ export default function ManualLesson({
   const left = step.left?.[column];
   const right = step.right?.[column];
   const unknown = left === '?' || right === '?';
+  const unknownRow = isUnknownRow(step);
+  const unknownTask = unknownRow || (guided && unknown);
+  const startUpward = unknownRow && step.kind === 'addition';
   const given = reviewing ? progress.answers[at] : progress.draft;
   const value = guided && !reviewing ? columnEntry(given, column) : given;
   const tableRow =
@@ -89,10 +99,35 @@ export default function ManualLesson({
   function patch(change: Partial<LessonProgress>) {
     onChange(editLesson(progress, change, example));
   }
+  function goToAnswer() {
+    field.current?.focus({ preventScroll: true });
+    field.current?.scrollIntoView({ block: 'center' });
+  }
+  function leaveUnknown() {
+    if (example || reviewing || done) return;
+    const result = keepUnknown(exercise, { ...progress, column });
+    if (!result.correct) {
+      setError(
+        normalizeAnswer(progress.draft).length > step.answer.length
+          ? 'Your row has extra characters. Open “Edit or paste the whole row” below to remove them.'
+          : 'Check your row below and try again.',
+      );
+      goToAnswer();
+      return;
+    }
+    setError('');
+    focusPrompt.current = true;
+    onChange(result.progress);
+    if (result.complete) onComplete();
+  }
   useEffect(() => {
     const changedStep =
-      lastLocation.current?.at !== at || !lastLocation.current.active;
-    lastLocation.current = { at, active };
+      lastLocation.current?.at !== at ||
+      !lastLocation.current.active ||
+      lastLocation.current.unknown !== unknownTask ||
+      focusPrompt.current;
+    lastLocation.current = { at, active, unknown: unknownTask };
+    focusPrompt.current = false;
     if (!active) return;
     const frame = requestAnimationFrame(() => {
       if (changedStep) {
@@ -104,7 +139,7 @@ export default function ManualLesson({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [at, column, active, example, done, reviewing, guided]);
+  }, [at, column, active, example, done, reviewing, guided, unknownTask]);
   function check(wholeRow = false) {
     if (example || reviewing) return;
     const result =
@@ -178,6 +213,7 @@ export default function ManualLesson({
     <div
       className="workshop-spread manual-spread guided-spread"
       data-paper-task={step.kind}
+      data-unknown-task={!done && unknownTask}
     >
       <header ref={instruction} tabIndex={-1} className="lesson-intro">
         <div className="running-head">
@@ -203,8 +239,66 @@ export default function ManualLesson({
               {guide.position && <span>{guide.position}</span>}
             </div>
             <div className="manual-instruction">
-              <h2>{step.title}</h2>
-              <p>{step.instruction}</p>
+              <h2>
+                {startUpward
+                  ? 'Your downward pass is complete.'
+                  : unknownRow
+                    ? 'Leave this row unknown for now.'
+                    : unknownTask
+                      ? 'Leave column ' + (column + 1) + ' unknown for now.'
+                      : step.title}
+              </h2>
+              <p>
+                {startUpward
+                  ? 'All 13 cells in this row are pink on the paper worksheet. Leave them blank. Now start at the given bottom row, SECRETSHARE32, and work upward to find the missing characters.'
+                  : unknownRow
+                    ? 'The eleven characters you keep and the two you bring in are all unknown. Keep their places as a row of 13 question marks.'
+                    : unknownTask
+                      ? 'One of the two characters in this column is unknown, so its result is unknown too. Leave this pink cell blank, just as you would on paper, then continue.'
+                      : step.instruction}
+              </p>
+            </div>
+            {unknownTask && (
+              <p className="unknown-guide">
+                <b>? means “not known yet”.</b> It marks a pink square left
+                blank in the book. You will fill it on the upward pass; there is
+                no wheel calculation for this cell yet.
+              </p>
+            )}
+            <div className="lesson-next-action">
+              {example ? (
+                <BookButton
+                  disabled={at === exercise.steps.length - 1}
+                  onClick={() => visit(at + 1)}
+                >
+                  {startUpward
+                    ? 'Show the upward pass'
+                    : 'Continue the example'}
+                  <ArrowRight size={17} />
+                </BookButton>
+              ) : unknownTask && !reviewing ? (
+                <BookButton onClick={leaveUnknown}>
+                  {startUpward
+                    ? 'Start the upward pass'
+                    : unknownRow
+                      ? 'Leave this row unknown and continue'
+                      : 'Leave this cell unknown and continue'}
+                  <ArrowRight size={17} />
+                </BookButton>
+              ) : (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={goToAnswer}
+                >
+                  {reviewing
+                    ? 'Review my answer'
+                    : step.id === 'endpoint'
+                      ? 'Write SECRETSHARE32'
+                      : 'Go to my answer'}
+                  <ArrowRight size={17} />
+                </button>
+              )}
             </div>
             {exercise.checksum && ['endpoint', 'prefill'].includes(step.id) && (
               <ShareHeader exercise={exercise} />
@@ -212,105 +306,117 @@ export default function ManualLesson({
           </>
         )}
       </header>
-      <section className="instrument-page magic-instrument">
-        {computational && !done ? (
-          <>
-            <div className="instrument-caption">
-              <span className="small-label">
-                {guided ? 'COLUMN ' + (column + 1) + ' OF 13' : exercise.title}
-              </span>
-              <span>
-                {unknown ? 'KEEP THE UNKNOWN CELL' : 'TURN · READ · WRITE'}
-              </span>
-            </div>
-            <Wheel
-              engine={engine}
-              kind={kind}
-              primary={view.primary}
-              other={view.other}
-              target={target}
-              onPrimary={(primary) => patch({ primary })}
-              onOther={(other) => patch({ other })}
-              controls={false}
-              factorSide={view.factorSide}
-              onFactorSide={(factorSide) => patch({ factorSide })}
-            />
-          </>
-        ) : derivationFactor && !done ? (
-          <DerivationTable />
-        ) : !done ? (
-          <PaperReference step={step} />
-        ) : (
-          <div className="paper-reference">
-            <h3>Your worksheet is complete.</h3>
-            <p>
-              You can review every entry using the controls on the facing page.
-            </p>
-            {exercise.checksum && !exercise.verification && (
-              <p>
-                The book also asks you to verify a separate copy of your share.{' '}
-                <a
-                  href={wheelData.sources.paper + '#page=21'}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Read the verification instructions on p. 14 ↗
-                </a>
-              </p>
-            )}
-          </div>
-        )}
-        {step.kind === 'lookup' && !done && (
-          <div className="table-reference">
-            <h3>Checksum table</h3>
-            <p>
-              The first character chooses a row; the second chooses a column.
-            </p>
-            <div className="table-pickers">
-              <label>
-                Table row · first character
-                <select
-                  value={view.tableFirst}
-                  onChange={(event) =>
-                    patch({ tableFirst: event.target.value, tableOpen: false })
-                  }
-                >
-                  {alphabet.split('').map((character) => (
-                    <option key={character}>{character}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Table column · second character
-                <select
-                  value={view.tableSecond}
-                  onChange={(event) =>
-                    patch({ tableSecond: event.target.value, tableOpen: false })
-                  }
-                >
-                  {alphabet.split('').map((character) => (
-                    <option key={character}>{character}</option>
-                  ))}
-                </select>
-              </label>
-              <button
-                className="secondary-button"
-                onClick={() => patch({ tableOpen: true })}
-              >
-                Look up this pair
-              </button>
-            </div>
-            {view.tableOpen && (
-              <output aria-live="polite">
-                <span>
-                  Selected entry: {view.tableFirst + view.tableSecond}
+      {!unknownTask || done ? (
+        <section className="instrument-page magic-instrument">
+          {computational && !done ? (
+            <>
+              <div className="instrument-caption">
+                <span className="small-label">
+                  {guided
+                    ? 'COLUMN ' + (column + 1) + ' OF 13'
+                    : exercise.title}
                 </span>
-                <code>{tableRow}</code>
-              </output>
-            )}
-          </div>
-        )}
-      </section>
+                <span>
+                  {unknown ? 'KEEP THE UNKNOWN CELL' : 'TURN · READ · WRITE'}
+                </span>
+              </div>
+              <Wheel
+                engine={engine}
+                kind={kind}
+                primary={view.primary}
+                other={view.other}
+                target={target}
+                onPrimary={(primary) => patch({ primary })}
+                onOther={(other) => patch({ other })}
+                controls={false}
+                factorSide={view.factorSide}
+                onFactorSide={(factorSide) => patch({ factorSide })}
+              />
+            </>
+          ) : derivationFactor && !done ? (
+            <DerivationTable />
+          ) : !done ? (
+            <PaperReference step={step} />
+          ) : (
+            <div className="paper-reference">
+              <h3>Your worksheet is complete.</h3>
+              <p>
+                You can review every entry using the controls on the facing
+                page.
+              </p>
+              {exercise.checksum && !exercise.verification && (
+                <p>
+                  The book also asks you to verify a separate copy of your
+                  share.{' '}
+                  <a
+                    href={wheelData.sources.paper + '#page=21'}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Read the verification instructions on p. 14 ↗
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
+          {step.kind === 'lookup' && !done && (
+            <div className="table-reference">
+              <h3>Checksum table</h3>
+              <p>
+                The first character chooses a row; the second chooses a column.
+              </p>
+              <div className="table-pickers">
+                <label>
+                  Table row · first character
+                  <select
+                    value={view.tableFirst}
+                    onChange={(event) =>
+                      patch({
+                        tableFirst: event.target.value,
+                        tableOpen: false,
+                      })
+                    }
+                  >
+                    {alphabet.split('').map((character) => (
+                      <option key={character}>{character}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Table column · second character
+                  <select
+                    value={view.tableSecond}
+                    onChange={(event) =>
+                      patch({
+                        tableSecond: event.target.value,
+                        tableOpen: false,
+                      })
+                    }
+                  >
+                    {alphabet.split('').map((character) => (
+                      <option key={character}>{character}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="secondary-button"
+                  onClick={() => patch({ tableOpen: true })}
+                >
+                  Look up this pair
+                </button>
+              </div>
+              {view.tableOpen && (
+                <output aria-live="polite">
+                  <span>
+                    Selected entry: {view.tableFirst + view.tableSecond}
+                  </span>
+                  <code>{tableRow}</code>
+                </output>
+              )}
+            </div>
+          )}
+        </section>
+      ) : null}
       <section className="worksheet-page manual-worksheet">
         <div className="running-head">
           <span>
@@ -468,12 +574,7 @@ export default function ManualLesson({
                     </button>
                   )}
                 </div>
-                {unknown ? (
-                  <p className="unknown-guide">
-                    The book marks unknown characters in pink. Write <b>?</b> in
-                    this cell; you will solve it on the upward pass.
-                  </p>
-                ) : (
+                {!unknown && (
                   <WheelControls
                     engine={engine}
                     kind={kind}
@@ -539,11 +640,15 @@ export default function ManualLesson({
                 <label htmlFor={answerId}>
                   {reviewing
                     ? 'Your checked entry'
-                    : guided
-                      ? '3. Write the result for column ' + (column + 1)
-                      : step.answer.length === 1
-                        ? 'Write the result'
-                        : 'Your row · ' + step.answer.length + ' characters'}
+                    : step.id === 'endpoint'
+                      ? 'Copy SECRETSHARE32 here'
+                      : guided
+                        ? unknown
+                          ? 'Or write ? for column ' + (column + 1)
+                          : '3. Write the result for column ' + (column + 1)
+                        : step.answer.length === 1
+                          ? 'Write the result'
+                          : 'Your row · ' + step.answer.length + ' characters'}
                 </label>
                 <input
                   ref={field}

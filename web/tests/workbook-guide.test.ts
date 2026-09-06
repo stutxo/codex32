@@ -17,6 +17,8 @@ import {
   columnEntry,
   writeColumn,
   stepGuide,
+  isUnknownRow,
+  keepUnknown,
 } from '../lib/workbook-guide.ts';
 
 engine.initSync({
@@ -75,7 +77,7 @@ await test('editing or clearing an earlier cell preserves later entries and gaps
   assert.equal(submitAnswer(exercise, withGap).correct, false);
 });
 
-await test('unknown paper cells require a typed question mark and incomplete rows survive restoration', () => {
+await test('unknown paper cells require a question mark and incomplete rows survive restoration', () => {
   const cursor = exercise.steps.findIndex(
     (step) => step.kind === 'addition' && step.answer.includes('?'),
   );
@@ -92,6 +94,70 @@ await test('unknown paper cells require a typed question mark and incomplete row
   const restored = restoreWorkbooks(engine, JSON.stringify(saved)).books
     .published.lessons['checksum-A'];
   assert.deepEqual(restored, progress);
+});
+
+await test('leaving a pink cell unknown preserves other work and cannot complete calculable cells', () => {
+  const cursor = exercise.steps.findIndex(
+    (step) => step.kind === 'addition' && step.answer.includes('?'),
+  );
+  const step = exercise.steps[cursor];
+  const column = step.answer.indexOf('?');
+  const progress = { ...atStep(cursor), column, draft: '!' };
+  const result = keepUnknown(exercise, progress);
+  assert.equal(result.correct, true);
+  assert.equal(result.progress.answers.length, cursor);
+  assert.equal(result.progress.cursor, cursor);
+  assert.equal(result.progress.column, 0);
+  assert.equal(columnEntry(result.progress.draft, 0), '!');
+  assert.equal(columnEntry(result.progress.draft, column), '?');
+  assert.equal(columnEntry(result.progress.draft, 1), '');
+  const known = keepUnknown(exercise, result.progress);
+  assert.equal(known.correct, false);
+  assert.equal(known.progress, result.progress);
+
+  const remaining = { ...progress, draft: step.answer.slice(0, column) };
+  const complete = keepUnknown(exercise, remaining);
+  assert.equal(complete.correct, true);
+  assert.equal(complete.progress.cursor, cursor + 1);
+  assert.equal(complete.progress.answers[cursor], step.answer);
+  const extra = keepUnknown(exercise, {
+    ...progress,
+    draft: step.answer + 'Q',
+  });
+  assert.equal(extra.correct, false);
+  assert.equal(extra.progress.cursor, cursor);
+  assert.equal(extra.progress.draft, step.answer + 'Q');
+});
+
+await test('the final pink row advances explicitly to the upward calculation, without awarding its answers', () => {
+  const cursor = exercise.steps.findIndex(isUnknownRow);
+  assert.equal(exercise.steps[cursor].id, 'down-15-shift');
+  assert.equal(exercise.steps.filter(isUnknownRow).length, 2);
+  const shifted = keepUnknown(exercise, atStep(cursor));
+  assert.equal(shifted.correct, true);
+  assert.equal(shifted.progress.cursor, cursor + 1);
+  assert.equal(exercise.steps[shifted.progress.cursor].id, 'down-15-add');
+  const upward = keepUnknown(exercise, shifted.progress);
+  assert.equal(upward.correct, true);
+  assert.equal(upward.complete, false);
+  assert.equal(exercise.steps[upward.progress.cursor].id, 'up-0-add');
+  assert.equal(exercise.steps[upward.progress.cursor].left, 'SECRETSHARE32');
+  assert.equal(upward.progress.draft, '');
+  assert.equal(upward.progress.answers.length, cursor + 2);
+  assert.equal(keepUnknown(exercise, upward.progress).correct, false);
+
+  const saved = emptyWorkbooks();
+  saved.books.published.initial = [session.shares.A, session.shares.C];
+  saved.books.published.lessons['checksum-A'] = upward.progress;
+  const restored = restoreWorkbooks(engine, JSON.stringify(saved)).books
+    .published.lessons['checksum-A'];
+  assert.deepEqual(restored, upward.progress);
+  assert.equal(
+    keepUnknown(exercise, { ...shifted.progress, cursor }).correct,
+    false,
+  );
+  const invalidPrefix = { ...atStep(cursor), answers: ['WRONG'] };
+  assert.equal(keepUnknown(exercise, invalidPrefix).correct, false);
 });
 
 await test('old full-row drafts, checked-step review and worked examples keep their existing semantics', () => {
