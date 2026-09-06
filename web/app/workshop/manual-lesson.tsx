@@ -50,6 +50,8 @@ export default function ManualLesson({
   const [error, setError] = useState('');
   const answerId = useId();
   const field = useRef<HTMLInputElement>(null);
+  const instruction = useRef<HTMLElement>(null);
+  const lastLocation = useRef<{ at: number; active: boolean } | null>(null);
   const at = example
     ? Math.min(progress.exampleCursor, exercise.steps.length - 1)
     : progress.cursor;
@@ -83,10 +85,21 @@ export default function ManualLesson({
     onChange(editLesson(progress, change, example));
   }
   useEffect(() => {
-    if (active && !example && !done && !reviewing) {
-      field.current?.focus({ preventScroll: true });
-    }
-  }, [at, column, active, example, done, reviewing]);
+    const changedStep =
+      lastLocation.current?.at !== at || !lastLocation.current.active;
+    lastLocation.current = { at, active };
+    if (!active) return;
+    const frame = requestAnimationFrame(() => {
+      if (changedStep) {
+        instruction.current?.focus({ preventScroll: true });
+        instruction.current?.scrollIntoView({ block: 'start' });
+      } else if (!example && !done && !reviewing) {
+        field.current?.focus({ preventScroll: true });
+        if (guided) field.current?.select();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [at, column, active, example, done, reviewing, guided]);
   function check(wholeRow = false) {
     if (example || reviewing) return;
     const result =
@@ -95,6 +108,8 @@ export default function ManualLesson({
         : submitAnswer(exercise, progress);
     if (!result.correct) {
       if (guided && !wholeRow) {
+        field.current?.focus({ preventScroll: true });
+        field.current?.select();
         setError(
           normalizeAnswer(progress.draft).length > step.answer.length
             ? 'Your row has extra characters. Open “Edit or paste the whole row” below to remove them.'
@@ -158,7 +173,7 @@ export default function ManualLesson({
       className="workshop-spread manual-spread guided-spread"
       data-paper-task={step.kind}
     >
-      <header className="lesson-intro">
+      <header ref={instruction} tabIndex={-1} className="lesson-intro">
         <div className="running-head">
           <span>
             {exercise.title} · {example ? 'WORKED EXAMPLE' : 'YOUR WORKBOOK'}
@@ -517,6 +532,9 @@ export default function ManualLesson({
                   id={answerId}
                   value={value}
                   readOnly={reviewing}
+                  onFocus={(event) => {
+                    if (guided && !reviewing) event.currentTarget.select();
+                  }}
                   maxLength={guided && !reviewing ? 1 : 64}
                   autoComplete="off"
                   autoCapitalize="characters"

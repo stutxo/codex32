@@ -1378,6 +1378,7 @@
 
 /* A shared instruction connects the instrument to the facing answer sheet. */
 .guided-spread .lesson-intro {
+  scroll-margin-top: 16px;
   grid-column: 1 / -1;
   padding: 22px clamp(18px, 2.1vw, 34px) 26px;
   background: var(--paper);
