@@ -472,6 +472,8 @@ export default function Workshop() {
           if (id.startsWith('checksum-'))
             finishAndCheck(id.slice(-1) as 'A' | 'C', undefined, false);
           else if (id === 'derive') finishAndCheck('D', undefined, false);
+          else if (id.startsWith('recover-'))
+            dispatchFlow({ type: 'recovery-completed' });
         }}
         onContinue={onComplete}
         continueLabel={
