@@ -12,6 +12,7 @@ export type WorkshopFlow = {
   checksumIndex: InitialIndex;
   checksums: Record<InitialIndex, boolean>;
   verified: Record<ShareIndex, boolean>;
+  computerVerified: Record<ShareIndex, boolean>;
   verifyIndex: ShareIndex;
   notice: string;
   navigation: number;
@@ -22,11 +23,14 @@ export const initialFlow: WorkshopFlow = {
   checksumIndex: 'A',
   checksums: { A: false, C: false },
   verified: { A: false, C: false, D: false },
+  computerVerified: { A: false, C: false, D: false },
   verifyIndex: 'A',
   notice: '',
   navigation: 0,
   focus: 'stage',
 };
+export const shareChecked = (state: WorkshopFlow, index: ShareIndex) =>
+  state.verified[index] || state.computerVerified[index];
 
 // Keep restored and manually revisited tabs on a worksheet whose prerequisites
 // have been completed. Completion flags are rebuilt from checked answers.
@@ -36,7 +40,7 @@ export function normalizeWorkshopFlow(
 ): WorkshopFlow {
   if (['random', 'checksum', 'workbench'].includes(state.phase)) return state;
   const missing = (['A', 'C'] as const).find(
-    (index) => !state.checksums[index] || !state.verified[index],
+    (index) => !state.checksums[index] || !shareChecked(state, index),
   );
   if (state.phase === 'verify') {
     const eligible = (index: ShareIndex) =>
@@ -55,7 +59,7 @@ export function normalizeWorkshopFlow(
     };
   if (state.phase === 'recover' && !derived)
     return { ...state, phase: 'derive' };
-  if (state.phase === 'recover' && !state.verified.D)
+  if (state.phase === 'recover' && !shareChecked(state, 'D'))
     return { ...state, phase: 'verify', verifyIndex: 'D' };
   return state;
 }
@@ -66,7 +70,11 @@ export type FlowAction =
   | { type: 'published-example' }
   | { type: 'checksum-completed'; index: InitialIndex }
   | { type: 'select-verification'; index: ShareIndex }
-  | { type: 'verification-completed'; index: ShareIndex }
+  | {
+      type: 'verification-completed';
+      index: ShareIndex;
+      method?: 'paper' | 'computer';
+    }
   | { type: 'derivation-completed' }
   | { type: 'recovery-completed' };
 
@@ -132,13 +140,21 @@ export function workshopFlow(
         focus: null,
       };
     case 'verification-completed': {
-      const verified = { ...state.verified, [action.index]: true };
+      const checkedState = {
+        ...state,
+        [action.method === 'computer' ? 'computerVerified' : 'verified']: {
+          ...(action.method === 'computer'
+            ? state.computerVerified
+            : state.verified),
+          [action.index]: true,
+        },
+      };
       const next = (['A', 'C'] as const).find(
-        (index) => !state.checksums[index] || !verified[index],
+        (index) =>
+          !state.checksums[index] || !shareChecked(checkedState, index),
       );
       return {
-        ...state,
-        verified,
+        ...checkedState,
         navigation,
         focus: 'stage',
         phase: next

@@ -1,6 +1,7 @@
 import {
   editLesson,
   prepareLesson,
+  visitLesson,
   normalizeAnswer,
   submitAnswer,
   type Exercise,
@@ -78,8 +79,12 @@ export function autoNextEntry(exercise: Exercise, progress: LessonProgress) {
 }
 
 export function autoChecksum(exercise: Exercise, progress: LessonProgress) {
+  if (!exercise.checksum) return { correct: false, complete: false, progress };
+  return autoExercise(exercise, progress);
+}
+
+export function autoExercise(exercise: Exercise, progress: LessonProgress) {
   if (
-    !exercise.checksum ||
     progress.cursor !== progress.answers.length ||
     !progress.answers.every((answer, i) => answer === exercise.steps[i]?.answer)
   )
@@ -95,6 +100,35 @@ export function autoChecksum(exercise: Exercise, progress: LessonProgress) {
     next = result.progress;
   }
   return { correct: true, complete: true, progress: next };
+}
+
+// Preview the next wheel calculation without changing saved work. The tutorial
+// commits these table/copy steps only when the learner chooses an auto action.
+export function tutorialCalculation(
+  exercise: Exercise,
+  progress: LessonProgress,
+  target: 'D' | 'S',
+) {
+  let next = prepareLesson(
+    exercise,
+    visitLesson(exercise, progress, progress.answers.length),
+  );
+  for (let i = 0; i < exercise.steps.length * 14; i++) {
+    const step = exercise.steps[next.cursor];
+    if (!step) return next;
+    const column = Math.min(next.column, (step.right?.length ?? 1) - 1);
+    const wheel =
+      ['addition', 'translation', 'recovery'].includes(step.kind) &&
+      !(step.kind === 'recovery' && target === 'D');
+    if (wheel && step.left?.[column] !== '?' && step.right?.[column] !== '?')
+      return next;
+    const result = wheel
+      ? autoNextEntry(exercise, next)
+      : submitAnswer(exercise, { ...next, draft: step.answer });
+    if (!result.correct) return next;
+    next = result.progress;
+  }
+  return next;
 }
 
 export function visibleShare(

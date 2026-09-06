@@ -13,6 +13,9 @@ import {
 import {
   normalizeWorkshopFlow,
   initialFlow,
+  workshopFlow,
+  shareChecked,
+  type ShareIndex,
   type Phase,
   type WorkshopFlow,
 } from './workshop-flow.ts';
@@ -426,6 +429,7 @@ export const emptyBook = (): Book => ({
     ...initialFlow,
     checksums: { A: false, C: false },
     verified: { A: false, C: false, D: false },
+    computerVerified: { A: false, C: false, D: false },
   },
   pair: 'C,D',
   example: false,
@@ -435,6 +439,37 @@ export const emptyBook = (): Book => ({
   examplePair: 'C,D',
   lessons: {},
 });
+export function computerCheck(
+  engine: Engine,
+  book: Book,
+  index: ShareIndex,
+): Book {
+  if (!book.initial) throw new Error('Create the initial shares first.');
+  const session = sessionFromInitial(engine, book.initial, 'fresh');
+  const source =
+    index === 'D'
+      ? shareExercise(engine, session, ['A', 'C'], 'D')
+      : checksumExercise(engine, session.shares[index]);
+  const lesson = book.lessons[index === 'D' ? 'derive' : 'checksum-' + index];
+  if (
+    !lesson ||
+    lesson.answers.length !== source.steps.length ||
+    !lesson.answers.every((answer, i) => answer === source.steps[i].answer) ||
+    (index === 'D' &&
+      (!shareChecked(book.flow, 'A') || !shareChecked(book.flow, 'C')))
+  )
+    throw new Error('Complete this share before checking it.');
+  checksumWorksheet(engine, session.shares[index], false);
+  return {
+    ...book,
+    flow: workshopFlow(book.flow, {
+      type: 'verification-completed',
+      index,
+      method: 'computer',
+    }),
+  };
+}
+
 export function showExample(book: Book, visible: boolean): Book {
   return {
     ...book,
@@ -788,6 +823,19 @@ export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
       }
       const derived =
         book.lessons.derive.answers.length === exercises.derive.steps.length;
+      for (const index of ['A', 'C', 'D'] as const) {
+        if (
+          object(savedFlow.computerVerified)[index] === true &&
+          (index === 'D'
+            ? derived &&
+              shareChecked(book.flow, 'A') &&
+              shareChecked(book.flow, 'C')
+            : book.flow.checksums[index])
+        ) {
+          checksumWorksheet(engine, session.shares[index], false);
+          book.flow.computerVerified[index] = true;
+        }
+      }
       book.flow = normalizeWorkshopFlow(book.flow, derived);
     } else {
       book.flow.phase =

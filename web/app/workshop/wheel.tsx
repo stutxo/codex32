@@ -31,6 +31,7 @@ type WheelProps = {
   target?: string;
   onPrimary: (value: string) => void;
   onOther: (value: string) => void;
+  onTurn?: (value: string) => void;
 };
 export function wheelAnswer(
   engine: Engine,
@@ -66,11 +67,14 @@ export default function Wheel({
   factorSide,
   onFactorSide,
   guided,
+  onTurn = onPrimary,
+  showFlip = true,
 }: WheelProps & {
   controls?: boolean;
   factorSide: boolean;
   onFactorSide: (value: boolean) => void;
   guided?: { primary: string; other: string };
+  showFlip?: boolean;
 }) {
   const id = useId();
   const primary =
@@ -134,7 +138,6 @@ export default function Wheel({
         aria-labelledby={`${id}-title ${id}-desc`}
         onPointerDown={(event) => {
           moved.current = false;
-          if (guided) return;
           const rect = event.currentTarget.getBoundingClientRect();
           const x = event.clientX - rect.left - rect.width / 2,
             y = event.clientY - rect.top - rect.height / 2;
@@ -162,7 +165,7 @@ export default function Wheel({
             event.currentTarget.setPointerCapture(event.pointerId);
             moved.current = true;
           }
-          onPrimary(
+          onTurn(
             order[
               (drag.current.slot + current - drag.current.start + count) % count
             ],
@@ -187,7 +190,7 @@ export default function Wheel({
         <title id={`${id}-title`}>{names[kind]} wheel</title>
         <desc id={`${id}-desc`}>
           {guided
-            ? `Set ${guided.primary}, then read ${guided.other}. Only the required characters can be selected in this guided workbook.`
+            ? `Drag the disc to turn it. Aim for ${guided.primary}, then read ${guided.other}. The highlighted setting shows the current worksheet calculation.`
             : `Drag the inner disc to change ${primaryLabel.toLowerCase()}. Read ${other} to get ${answer ?? 'an invalid index pair'}.`}{' '}
           Use the labeled controls beside the worksheet for keyboard access.
         </desc>
@@ -237,37 +240,31 @@ export default function Wheel({
             </svg>
           </figure>
         )}
-      {!guided && (
+      {
         <div className="wheel-turn-buttons">
           <button
             className="secondary-button"
-            onClick={() => onPrimary(order[nextSlot(slot, -1, count)])}
+            onClick={() => onTurn(order[nextSlot(slot, -1, count)])}
             aria-label="Turn wheel one position counterclockwise"
           >
             <ChevronLeft size={17} />
           </button>
-          <span>
-            {kind === 'addition'
-              ? 'Point to the first character. Read the labeled window.'
-              : 'Drag the handle to turn the printed disc.'}
-          </span>
+          <span>Drag the disc, or use the arrows to turn it.</span>
           <button
             className="secondary-button"
-            onClick={() => onPrimary(order[nextSlot(slot, 1, count)])}
+            onClick={() => onTurn(order[nextSlot(slot, 1, count)])}
             aria-label="Turn wheel one position clockwise"
           >
             <ChevronRight size={17} />
           </button>
         </div>
-      )}
+      }
       {guided && (
         <p className="wheel-guided-note">
-          The highlighted characters match this worksheet column. Use the
-          buttons beside the worksheet, or tap those characters on the
-          instrument.
+          Drag to turn. The gold marks show the setting for this calculation.
         </p>
       )}
-      {kind === 'translation' && (
+      {kind === 'translation' && showFlip && (
         <button
           className="secondary-button wheel-flip"
           onClick={() => onFactorSide(!factorSide)}

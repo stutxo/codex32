@@ -18,6 +18,7 @@ import {
   type Exercise,
   type LessonProgress,
 } from '@/lib/workbook';
+import SecretResult from './secret-result';
 import Wheel, { WheelControls, type WheelKind } from './wheel';
 import PaperReference, {
   ShareHeader,
@@ -32,7 +33,7 @@ import {
   keepUnknown,
   selectOperand,
   autoNextEntry,
-  autoChecksum,
+  autoExercise,
   visibleShare,
 } from '@/lib/workbook-guide';
 
@@ -452,6 +453,7 @@ export default function ManualLesson({
                 other={view.other}
                 target={target}
                 onPrimary={(primary) => chooseOperand('primary', primary)}
+                onTurn={(primary) => patch({ primary })}
                 onOther={(other) => chooseOperand('other', other)}
                 guided={{ primary: left!, other: right! }}
                 controls={false}
@@ -586,21 +588,10 @@ export default function ManualLesson({
               Review my steps
             </button>
             {!exercise.checksum && target === 'S' && (
-              <div data-recovery-result="true" tabIndex={-1}>
-                <h3>The same test wallet.</h3>
-                <p>
-                  These Signet addresses match the seed from your practice
-                  shares.
-                </p>
-                <ol className="address-list">
-                  {session.addresses.map((address, i) => (
-                    <li key={address}>
-                      <span>Receive address {i + 1}</span>
-                      <code>{address}</code>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+              <SecretResult
+                secret={exercise.output}
+                addresses={session.addresses}
+              />
             )}
           </div>
         ) : (
@@ -865,13 +856,13 @@ export default function ManualLesson({
                 >
                   Auto-complete next letter
                 </button>
-                {exercise.checksum && (
+                {
                   <button
                     type="button"
                     className="secondary-button"
                     disabled={autoBusy}
                     onClick={() => {
-                      const result = autoChecksum(exercise, progress);
+                      const result = autoExercise(exercise, progress);
                       if (!result.correct) return;
                       setError('');
                       onChange(result.progress);
@@ -880,9 +871,11 @@ export default function ManualLesson({
                   >
                     {exercise.verification
                       ? 'Auto-complete this verification'
-                      : 'Auto-complete this checksum'}
+                      : exercise.checksum
+                        ? 'Auto-complete this checksum'
+                        : 'Auto-complete this section'}
                   </button>
-                )}
+                }
                 <p>
                   {autoBusy
                     ? 'Turning the wheel, then recording the next letter…'
