@@ -195,6 +195,69 @@
 .wheel-character {
   cursor: pointer;
 }
+.volvelle [data-guided-active='false'] {
+  pointer-events: none;
+  cursor: default;
+}
+.volvelle [data-guided-active='true'] {
+  cursor: pointer;
+}
+.guided-wheel-control {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  align-content: start;
+}
+.guided-wheel-control button {
+  min-height: 60px;
+  white-space: normal;
+}
+.guided-wheel-control button[aria-pressed='true'] {
+  background: #ede8f2;
+  border-color: var(--primary);
+}
+.wheel-guided-note {
+  text-align: center;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.full-share-strip {
+  margin-top: 18px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+}
+.full-share-strip code {
+  display: block;
+  margin: 12px 0;
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.full-share-strip p,
+.auto-workbook-actions p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.auto-workbook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.auto-workbook-actions p {
+  flex-basis: 100%;
+}
+[data-auto-turning='true'] .addition-top-disc,
+[data-auto-turning='true'] .ring-top-disc {
+  transition: transform 500ms ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-auto-turning='true'] .addition-top-disc,
+  [data-auto-turning='true'] .ring-top-disc {
+    transition: none;
+  }
+}
 .wheel-letter,
 .wheel-inner-letter {
   text-anchor: middle;
@@ -1966,7 +2029,27 @@
       1fr
     ) max-content;
 }
+.dice-column-headings {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+}
+.saved-full-share {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.saved-full-share span {
+  font-size: 0.85rem;
+}
+.saved-full-share code {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
 @media (max-width: 480px) {
+  .dice-column-headings > span:last-child {
+    display: none;
+  }
   .manual-dice .dice-track {
     grid-template-columns: max-content minmax(0, 1fr) 20px minmax(0, 1fr);
   }

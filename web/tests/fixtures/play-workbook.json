@@ -1,0 +1,17 @@
+{
+  "publicResearchOnly": true,
+  "source": "Previous PLAY practice factory, using the public Bech32 alphabet repeated as deterministic input",
+  "payload": "QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7LQPZRY9X8GF2TVDW0S3JN",
+  "kind": "fresh",
+  "shares": {
+    "A": "MS12PLAYAQPZRY9X8GF2TVDW0S3JN54KHCEW2QZ546E6WPTK",
+    "C": "MS12PLAYC6MUA7LQPZRY9X8GF2TVDW0S3JNP0P7LPUWKTL00",
+    "D": "MS12PLAYDX8ECZRPQPQ7L9YFGKHFGJN3S3SH6DRS8AU576K8"
+  },
+  "secret": "MS12PLAYSEC9YAUHKJNW0KHL7FG45DV8XZRE8N2AGTC3RX4N",
+  "addresses": [
+    "tb1p3xzjk4q0dexs0w3lfacpdvzs5nra2g566t2hj2tc9rz4h9wt6wms63tntp",
+    "tb1pv3su5dy98qxk3h29wfk3qm4n84srjssekc6ce60gtw7a678gx92qtyvhrw",
+    "tb1pft75txe5fg9h5kmmg6rfmv2vfza9qyjk52ajau6hudql85sp0uyqmq40e6"
+  ]
+}

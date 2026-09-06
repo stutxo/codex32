@@ -30,6 +30,10 @@ import {
   stepGuide,
   isUnknownRow,
   keepUnknown,
+  selectOperand,
+  autoNextEntry,
+  autoChecksum,
+  visibleShare,
 } from '@/lib/workbook-guide';
 
 export default function ManualLesson({
@@ -54,6 +58,11 @@ export default function ManualLesson({
   session: WorkshopSession;
 }) {
   const [error, setError] = useState('');
+  const [autoBusy, setAutoBusy] = useState(false);
+  const pendingAuto = useRef<{
+    output: string;
+    progress: LessonProgress;
+  } | null>(null);
   const answerId = useId();
   const field = useRef<HTMLInputElement>(null);
   const instruction = useRef<HTMLElement>(null);
@@ -103,6 +112,68 @@ export default function ManualLesson({
   function patch(change: Partial<LessonProgress>) {
     onChange(editLesson(progress, change, example));
   }
+  function chooseOperand(part: 'primary' | 'other', value: string) {
+    const next = selectOperand(exercise, progress, part, value, example);
+    if (next !== progress) onChange(next);
+  }
+  function autoLetter() {
+    if (autoBusy || example || reviewing || done) return;
+    setError('');
+    if (computational && !unknown) {
+      const aligned = {
+        ...progress,
+        primary: left!,
+        other: right!,
+        factorSide: false,
+      };
+      pendingAuto.current = { output: exercise.output, progress: aligned };
+      setAutoBusy(true);
+      onChange(aligned);
+    } else {
+      const selected =
+        step.kind === 'lookup'
+          ? {
+              ...progress,
+              tableFirst: step.key![0],
+              tableSecond: step.key![1],
+              tableOpen: true,
+            }
+          : progress;
+      const result = autoNextEntry(exercise, selected);
+      onChange(result.progress);
+      if (!result.correct)
+        setError(
+          'Your row has extra characters. Remove them before continuing.',
+        );
+      if (result.complete) onComplete();
+    }
+  }
+  useEffect(() => {
+    const pending = pendingAuto.current;
+    if (!pending) return;
+    if (
+      !active ||
+      example ||
+      pending.output !== exercise.output ||
+      pending.progress !== progress
+    ) {
+      pendingAuto.current = null;
+      setAutoBusy(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      pendingAuto.current = null;
+      setAutoBusy(false);
+      const result = autoNextEntry(exercise, progress);
+      onChange(result.progress);
+      if (!result.correct)
+        setError(
+          'Your row has extra characters. Open “Edit or paste the whole row” to remove them.',
+        );
+      if (result.complete) onComplete();
+    }, 650);
+    return () => clearTimeout(timer);
+  }, [active, example, progress, exercise, onChange, onComplete]);
   function goToAnswer() {
     field.current?.focus({ preventScroll: true });
     field.current?.scrollIntoView({ block: 'center' });
@@ -219,6 +290,8 @@ export default function ManualLesson({
       className="workshop-spread manual-spread guided-spread"
       data-paper-task={step.kind}
       data-unknown-task={!done && unknownTask}
+      data-auto-turning={autoBusy}
+      inert={autoBusy || undefined}
     >
       <header ref={instruction} tabIndex={-1} className="lesson-intro">
         <div className="running-head">
@@ -237,6 +310,23 @@ export default function ManualLesson({
             Book p. {exercise.verification ? '14' : guide.printedPage} ↗
           </a>
         </div>
+        {exercise.checksum && (
+          <div className="full-share-strip">
+            <strong>Complete share {exercise.output[8]} · 48 characters</strong>
+            <code aria-label="Complete share on your worksheet">
+              {grouped(visibleShare(exercise, progress, example))}
+            </code>
+            <p>
+              MS1 prefix · {exercise.output.slice(3, 9)} header · 26 random
+              characters · 13 checksum characters.
+              {!exercise.verification &&
+                !example &&
+                ' The ? spaces fill as you recover the checksum on the upward pass.'}{' '}
+              The calculation includes the header after MS1, your random
+              characters and the checksum.
+            </p>
+          </div>
+        )}
         {!done && (
           <>
             <div className="lesson-route">
@@ -256,6 +346,21 @@ export default function ManualLesson({
                   Start here by adding the beginning of your share to the book’s
                   printed starting row, <code>33XW87RR3YLJG</code>.
                 </p>
+                <details>
+                  <summary>Why does every share use the same target?</summary>
+                  <p>
+                    The target is the agreed finishing row. Each share needs its
+                    own checksum characters to reach it. Knowing the finish lets
+                    you work upward to find those missing characters. Later, you
+                    check a complete share by working downward: the last row
+                    must read <code>SECRETSHARE32</code>. A different result
+                    means something was copied or calculated incorrectly.
+                  </p>
+                  <p>
+                    This public target adds no randomness. Your random
+                    characters in shares A and C are what create the test key.
+                  </p>
+                </details>
               </aside>
             )}
             <div className="manual-instruction">
@@ -346,8 +451,9 @@ export default function ManualLesson({
                 primary={view.primary}
                 other={view.other}
                 target={target}
-                onPrimary={(primary) => patch({ primary })}
-                onOther={(other) => patch({ other })}
+                onPrimary={(primary) => chooseOperand('primary', primary)}
+                onOther={(other) => chooseOperand('other', other)}
+                guided={{ primary: left!, other: right! }}
                 controls={false}
                 factorSide={view.factorSide}
                 onFactorSide={(factorSide) => patch({ factorSide })}
@@ -386,53 +492,51 @@ export default function ManualLesson({
                 The first character chooses a row; the second chooses a column.
               </p>
               <div className="table-pickers">
-                <label>
-                  Table row · first character
-                  <select
-                    value={view.tableFirst}
-                    onChange={(event) =>
-                      patch({
-                        tableFirst: event.target.value,
-                        tableOpen: false,
-                      })
-                    }
-                  >
-                    {alphabet.split('').map((character) => (
-                      <option key={character}>{character}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Table column · second character
-                  <select
-                    value={view.tableSecond}
-                    onChange={(event) =>
-                      patch({
-                        tableSecond: event.target.value,
-                        tableOpen: false,
-                      })
-                    }
-                  >
-                    {alphabet.split('').map((character) => (
-                      <option key={character}>{character}</option>
-                    ))}
-                  </select>
-                </label>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-pressed={view.tableFirst === step.key![0]}
+                  onClick={() =>
+                    patch({ tableFirst: step.key![0], tableOpen: false })
+                  }
+                >
+                  1. Choose row {step.key![0]}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={view.tableFirst !== step.key![0]}
+                  aria-pressed={
+                    view.tableFirst === step.key![0] &&
+                    view.tableSecond === step.key![1]
+                  }
+                  onClick={() =>
+                    patch({ tableSecond: step.key![1], tableOpen: false })
+                  }
+                >
+                  2. Choose column {step.key![1]}
+                </button>
                 <button
                   className="secondary-button"
+                  disabled={
+                    view.tableFirst !== step.key![0] ||
+                    view.tableSecond !== step.key![1]
+                  }
                   onClick={() => patch({ tableOpen: true })}
                 >
                   Look up this pair
                 </button>
               </div>
-              {view.tableOpen && (
-                <output aria-live="polite">
-                  <span>
-                    Selected entry: {view.tableFirst + view.tableSecond}
-                  </span>
-                  <code>{tableRow}</code>
-                </output>
-              )}
+              {view.tableOpen &&
+                view.tableFirst === step.key![0] &&
+                view.tableSecond === step.key![1] && (
+                  <output aria-live="polite">
+                    <span>
+                      Selected entry: {view.tableFirst + view.tableSecond}
+                    </span>
+                    <code>{tableRow}</code>
+                  </output>
+                )}
             </div>
           )}
         </section>
@@ -608,18 +712,11 @@ export default function ManualLesson({
                     primary={view.primary}
                     other={view.other}
                     target={target}
-                    onPrimary={(primary) => patch({ primary })}
-                    onOther={(other) => patch({ other })}
+                    onPrimary={(primary) => chooseOperand('primary', primary)}
+                    onOther={(other) => chooseOperand('other', other)}
                     expected={{ primary: left!, other: right! }}
+                    factorSide={view.factorSide}
                   />
-                )}
-                {example && !unknown && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => patch({ primary: left!, other: right! })}
-                  >
-                    Show this setting
-                  </button>
                 )}
                 {guided && (
                   <div className="written-row">
@@ -757,6 +854,41 @@ export default function ManualLesson({
                   </details>
                 )}
               </form>
+            )}
+            {!example && !reviewing && (
+              <div className="auto-workbook-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={autoBusy}
+                  onClick={autoLetter}
+                >
+                  Auto-complete next letter
+                </button>
+                {exercise.checksum && (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={autoBusy}
+                    onClick={() => {
+                      const result = autoChecksum(exercise, progress);
+                      if (!result.correct) return;
+                      setError('');
+                      onChange(result.progress);
+                      if (result.complete) onComplete();
+                    }}
+                  >
+                    {exercise.verification
+                      ? 'Auto-complete this verification'
+                      : 'Auto-complete this checksum'}
+                  </button>
+                )}
+                <p>
+                  {autoBusy
+                    ? 'Turning the wheel, then recording the next letter…'
+                    : 'Optional shortcuts perform the same worksheet calculations. You can review every filled row.'}
+                </p>
+              </div>
             )}
             <div className="checksum-actions">
               <button

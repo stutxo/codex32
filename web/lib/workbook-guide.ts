@@ -1,10 +1,123 @@
 import {
+  editLesson,
+  prepareLesson,
   normalizeAnswer,
   submitAnswer,
   type Exercise,
   type ExerciseStep,
   type LessonProgress,
 } from './workbook.ts';
+
+// Both the artwork and the controls use this gate. Choosing a setting never
+// writes an answer or earns worksheet credit, including in the worked example.
+export function selectOperand(
+  exercise: Exercise,
+  progress: LessonProgress,
+  part: 'primary' | 'other',
+  value: string,
+  example = false,
+) {
+  const start = exercise.steps[0]?.id === 'endpoint' ? 1 : 0;
+  const at = example
+    ? Math.max(
+        start,
+        Math.min(progress.exampleCursor, exercise.steps.length - 1),
+      )
+    : progress.cursor;
+  const step = exercise.steps[at];
+  if (!step || !['addition', 'translation', 'recovery'].includes(step.kind))
+    return progress;
+  const view = example ? progress.exampleWheel : progress;
+  const column = Math.min(view.column, (step.left?.length ?? 1) - 1);
+  const left = step.left?.[column];
+  const right = step.right?.[column];
+  if (!left || !right || left === '?' || right === '?') return progress;
+  const primary =
+    step.kind === 'translation' && view.primary === 'Q' ? 'P' : view.primary;
+  if (value !== (part === 'primary' ? left : right)) return progress;
+  if (
+    part === 'other' &&
+    (primary !== left || (step.kind === 'translation' && view.factorSide))
+  )
+    return progress;
+  return editLesson(progress, { [part]: value }, example);
+}
+
+// Explicit shortcuts use the same answer validator as handwritten work.
+export function autoNextEntry(exercise: Exercise, progress: LessonProgress) {
+  const step = exercise.steps[progress.cursor];
+  if (
+    !step ||
+    progress.cursor !== progress.answers.length ||
+    !progress.answers.every((answer, i) => answer === exercise.steps[i]?.answer)
+  )
+    return { correct: false, complete: false, progress };
+  const row = normalizeAnswer(progress.draft);
+  const wheelColumn = step.kind === 'addition' && step.answer.length > 1;
+  const column = wheelColumn
+    ? Math.min(progress.column, step.answer.length - 1)
+    : Math.max(
+        0,
+        step.answer.split('').findIndex((letter, i) => row[i] !== letter),
+      );
+  const filled = {
+    ...progress,
+    column,
+    draft: writeColumn(
+      progress.draft,
+      column,
+      step.answer[column],
+      step.answer.length,
+    ),
+  };
+  const result = checkColumn(exercise, filled);
+  if (!result.correct) return { ...result, progress: filled };
+  return !wheelColumn && result.progress.cursor === progress.cursor
+    ? { ...result, progress: { ...result.progress, column: 0 } }
+    : result;
+}
+
+export function autoChecksum(exercise: Exercise, progress: LessonProgress) {
+  if (
+    !exercise.checksum ||
+    progress.cursor !== progress.answers.length ||
+    !progress.answers.every((answer, i) => answer === exercise.steps[i]?.answer)
+  )
+    return { correct: false, complete: false, progress };
+  let next = prepareLesson(exercise, progress);
+  while (next.cursor < exercise.steps.length) {
+    const result = submitAnswer(exercise, {
+      ...next,
+      draft: exercise.steps[next.cursor].answer,
+    });
+    if (!result.correct || result.progress.cursor <= next.cursor)
+      return { correct: false, complete: false, progress };
+    next = result.progress;
+  }
+  return { correct: true, complete: true, progress: next };
+}
+
+export function visibleShare(
+  exercise: Exercise,
+  progress: LessonProgress,
+  example = false,
+) {
+  if (example || exercise.verification) return exercise.output;
+  const characters = (exercise.output.slice(0, 35) + '?'.repeat(13)).split('');
+  exercise.steps.forEach((step, i) => {
+    if (
+      step.direction !== 'up' ||
+      step.kind !== 'copy' ||
+      !step.position ||
+      progress.answers[i] !== step.answer
+    )
+      return;
+    step.answer.split('').forEach((letter, offset) => {
+      characters[step.position! - 1 + offset] = letter;
+    });
+  });
+  return characters.join('');
+}
 
 // A blank entry is distinct from the book's ?, which means an unknown value.
 export const EMPTY_CELL = '·';

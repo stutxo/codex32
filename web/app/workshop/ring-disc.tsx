@@ -8,6 +8,7 @@ export default function RingDisc({
   other,
   onPrimary,
   onOther,
+  guide,
 }: {
   kind: 'recovery' | 'translation' | 'fusion';
   order: string;
@@ -15,6 +16,7 @@ export default function RingDisc({
   other: string;
   onPrimary: (letter: string) => void;
   onOther: (letter: string) => void;
+  guide?: { primary: string; other?: string };
 }) {
   const recovery = kind === 'recovery';
   const radius = recovery ? 170 : 176;
@@ -31,14 +33,34 @@ export default function RingDisc({
             key={letter}
             transform={`rotate(${(i * 360) / 31})`}
             className="wheel-character"
-            onClick={() => (recovery ? onOther(letter) : onPrimary(letter))}
+            data-character={letter}
+            data-guided-active={
+              guide
+                ? letter === guide.primary ||
+                  (recovery && letter === guide.other)
+                : undefined
+            }
+            onClick={() =>
+              recovery && (!guide || letter !== guide.primary)
+                ? onOther(letter)
+                : onPrimary(letter)
+            }
           >
             <rect
               x="-11"
               y="-198"
               width="22"
               height="29"
-              fill={recovery && letter === other ? '#ffe194' : 'transparent'}
+              fill={
+                (
+                  guide
+                    ? letter === guide.primary ||
+                      (recovery && letter === guide.other)
+                    : recovery && letter === other
+                )
+                  ? '#ffe194'
+                  : 'transparent'
+              }
             />
             <text x="0" y="-179.6" className="ring-printed-letter">
               {glyph(letter)}
@@ -76,6 +98,10 @@ export default function RingDisc({
               key={letter}
               transform={`rotate(${(i * 360) / 31})`}
               className="ring-printed-position"
+              data-character={letter}
+              data-guided-active={
+                guide ? !recovery && letter === guide.other : undefined
+              }
               onClick={() => {
                 if (!recovery) onOther(letter);
               }}
@@ -85,7 +111,11 @@ export default function RingDisc({
                 y="-172"
                 width="20"
                 height="26"
-                fill={!recovery && letter === other ? '#ffe194' : 'transparent'}
+                fill={
+                  !recovery && letter === (guide ? guide.other : other)
+                    ? '#ffe194'
+                    : 'transparent'
+                }
               />
               <text x="0" y="-155.6" className="ring-printed-letter">
                 {recovery ? (read ? symbol(read) : '') : glyph(read!)}
@@ -95,7 +125,13 @@ export default function RingDisc({
           );
         })}
         {kind === 'translation' && (
-          <text x="0" y="-202" className="ring-zero-reminder">
+          <text
+            x="0"
+            y="-202"
+            className="ring-zero-reminder"
+            data-guided-active={guide ? guide.other === 'Q' : undefined}
+            onClick={() => onOther('Q')}
+          >
             Q↔Q
           </text>
         )}

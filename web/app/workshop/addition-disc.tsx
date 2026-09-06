@@ -26,12 +26,14 @@ export default function AdditionDisc({
   other,
   onPrimary,
   onOther,
+  guide,
 }: {
   id: string;
   angle: number;
   other: string;
   onPrimary: (letter: string) => void;
   onOther: (letter: string) => void;
+  guide?: { primary: string; other?: string };
 }) {
   return (
     <>
@@ -65,9 +67,20 @@ export default function AdditionDisc({
             key={setting.primary}
             transform={`rotate(${setting.angle})`}
             className="wheel-character"
+            data-guided-active={
+              guide ? setting.primary === guide.primary : undefined
+            }
             onClick={() => onPrimary(setting.primary)}
           >
-            <rect x="-12" y="-266" width="24" height="26" fill="transparent" />
+            <rect
+              x="-12"
+              y="-266"
+              width="24"
+              height="26"
+              fill={
+                guide?.primary === setting.primary ? '#ffe194' : 'transparent'
+              }
+            />
             <text
               x="0"
               y={-40 * Math.sqrt(38)}
@@ -104,6 +117,9 @@ export default function AdditionDisc({
               key={window.letter}
               className="addition-window-label"
               data-window={window.letter}
+              data-guided-active={
+                guide ? window.letter === guide.other : undefined
+              }
               onClick={() => onOther(window.letter)}
             >
               <rect
@@ -111,7 +127,11 @@ export default function AdditionDisc({
                 y={window.y - 7}
                 width="30"
                 height="14"
-                fill={other === window.letter ? '#ffe194' : 'white'}
+                fill={
+                  (guide ? guide.other : other) === window.letter
+                    ? '#ffe194'
+                    : 'white'
+                }
                 stroke="#111"
                 strokeWidth="0.5"
               />
@@ -135,9 +155,19 @@ export default function AdditionDisc({
             width="12"
             height="12"
             fill="transparent"
-            stroke={other === window.letter ? '#a32f39' : '#111'}
-            strokeWidth={other === window.letter ? 1.5 : 0.5}
+            stroke={
+              (guide ? guide.other : other) === window.letter
+                ? '#a32f39'
+                : '#111'
+            }
+            strokeWidth={
+              (guide ? guide.other : other) === window.letter ? 1.5 : 0.5
+            }
             className="addition-window"
+            data-window={window.letter}
+            data-guided-active={
+              guide ? window.letter === guide.other : undefined
+            }
             onClick={() => onOther(window.letter)}
           />
         ))}

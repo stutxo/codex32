@@ -93,6 +93,29 @@ export function recordDiceCharacter(
   return draft + dice.character;
 }
 
+export function autoDiceCharacter(
+  draft: string,
+  pending: DiceResult | null,
+  entry: DiceEntry,
+  fill: RandomFill = browserRandom,
+) {
+  if (draft.length >= 52) return null;
+  const dice = pending && !entry.recorded ? pending : rollDiceCharacter(fill);
+  const completed = {
+    bits: dice.bits.split(''),
+    character: dice.character,
+    recorded: false,
+  };
+  const next = recordDiceCharacter(draft, dice, completed);
+  return next === null
+    ? null
+    : {
+        draft: next,
+        dice,
+        diceEntry: { ...completed, recorded: true },
+      };
+}
+
 function exported(backup: { exportText(): string; free(): void }): string {
   try {
     return backup.exportText().toUpperCase();

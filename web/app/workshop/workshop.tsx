@@ -25,9 +25,11 @@ import {
   ProgressValue,
 } from '@/components/ui/progress';
 import { loadEngine } from '@/lib/engine';
-import { type Engine } from '@/lib/practice';
+import { grouped, type Engine } from '@/lib/practice';
+import { visibleShare } from '@/lib/workbook-guide';
 import {
   completePracticeSession,
+  autoDiceCharacter,
   emptyDiceEntry,
   recordDiceCharacter,
   publishedSession,
@@ -100,13 +102,17 @@ export default function Workshop() {
   const [diceError, setDiceError] = useState('');
   const [makingAnother, setMakingAnother] = useState(false);
   function updateBook(change: (current: Book) => Book) {
-    setWorkbooks((current) => ({
-      ...current,
-      books: {
-        ...current.books,
-        [current.active]: change(current.books[current.active]),
-      },
-    }));
+    setWorkbooks((current) =>
+      current.active !== workbooks.active
+        ? current
+        : {
+            ...current,
+            books: {
+              ...current.books,
+              [current.active]: change(current.books[current.active]),
+            },
+          },
+    );
   }
   function dispatchFlow(action: FlowAction) {
     updateBook((current) => ({
@@ -299,6 +305,19 @@ export default function Workshop() {
       );
     }
   }
+  function autoRoll() {
+    try {
+      const next = autoDiceCharacter(draft, dice, book.diceEntry);
+      if (!next) return;
+      updateBook((current) => ({ ...current, ...next }));
+      setError('');
+      setDiceError('');
+    } catch {
+      setError(
+        'Browser randomness was unavailable. The existing characters are unchanged.',
+      );
+    }
+  }
   useEffect(() => {
     if (!flow.navigation || !flow.focus) return;
     // Allow the tabs' layout effects to reveal the newly active panel first.
@@ -377,6 +396,11 @@ export default function Workshop() {
         target={target}
         onChange={(progress) =>
           updateBook((current) => {
+            if (
+              current.initial?.join('') !== book.initial?.join('') ||
+              current.example !== book.example
+            )
+              return current;
             if (
               current.example &&
               progress.answers.length !==
@@ -579,6 +603,11 @@ export default function Workshop() {
                     share. They still define the same test key. Your checksum
                     entries and wheel settings are kept when you change tabs.
                   </p>
+                  <p>
+                    This workbook’s four-character name is{' '}
+                    <b>{session.shares.A.slice(4, 8)}</b>. It identifies which
+                    shares belong together.
+                  </p>
                   <div className="random-share-drafts">
                     {(['A', 'C'] as const).map((index) => (
                       <div key={index}>
@@ -592,6 +621,23 @@ export default function Workshop() {
                             .split('')
                             .join(' ')}
                         </code>
+                        {exercises && (
+                          <div className="saved-full-share">
+                            <span>
+                              Complete share · header, random characters,
+                              checksum
+                            </span>
+                            <code>
+                              {grouped(
+                                visibleShare(
+                                  exercises['checksum-' + index],
+                                  book.lessons['checksum-' + index] ??
+                                    emptyLesson(),
+                                ),
+                              )}
+                            </code>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -651,9 +697,16 @@ export default function Workshop() {
                         define a fresh 128-bit test seed.
                       </p>
                       <p className="serif-copy">
-                        This exercise uses the name <b>PLAY</b> and three
+                        New practice keys use the name <b>TEST</b> and three
                         shares, A, C and D. Any two recover the seed (k = 2). We
                         follow the book’s translation worksheet method.
+                      </p>
+                      <p>
+                        The book uses <b>NAME</b> in its example. This public
+                        label can be any four characters from the Codex32
+                        alphabet; it helps you keep shares from the same backup
+                        together. Here we use TEST to label new practice
+                        backups.
                       </p>
                       <div className="random-share-drafts">
                         {['A', 'C'].map((label, row) => (
@@ -696,6 +749,13 @@ export default function Workshop() {
                           <Dices size={17} /> Roll five pairs
                         </button>
                         <button
+                          className="secondary-button"
+                          disabled={draft.length >= 52}
+                          onClick={autoRoll}
+                        >
+                          Auto-roll one letter <WandSparkles size={15} />
+                        </button>
+                        <button
                           className="text-button"
                           disabled={draft.length >= 52}
                           onClick={fill}
@@ -703,6 +763,13 @@ export default function Workshop() {
                           Fill remaining characters <WandSparkles size={15} />
                         </button>
                       </div>
+
+                      <p className="worksheet-caption">
+                        “Roll five pairs” rolls both dice in each pair, ready
+                        for you to compare. “Auto-roll one letter” also follows
+                        the tree and records the letter; if dice are waiting, it
+                        finishes that same roll.
+                      </p>
 
                       <div className="create-backup-inline">
                         {createButton()}
@@ -745,9 +812,10 @@ export default function Workshop() {
                         </div>
                       </div>
                       <p>
-                        Each set of five pairs makes one of the 52 characters. A
-                        higher second roll gives 1; a lower second roll gives 0.
-                        Ties are rolled again.
+                        First roll a die, then roll it again. Compare the second
+                        roll with the first: higher gives 1; lower gives 0. If
+                        they tie, roll both again. Repeat for five pairs: ten
+                        rolls (plus any ties) make one character.
                       </p>
                       <DiceWorksheet
                         dice={dice}

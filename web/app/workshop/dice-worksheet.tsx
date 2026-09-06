@@ -30,6 +30,13 @@ export default function DiceWorksheet({
   return (
     <div className="manual-dice">
       <div className="dice-tracks">
+        <div className="dice-track dice-column-headings" aria-hidden="true">
+          <span>Pair</span>
+          <span>First roll</span>
+          <span />
+          <span>Second roll</span>
+          <span>Compare</span>
+        </div>
         {Array.from({ length: 5 }, (_, i) => (
           <div className="dice-track" key={i}>
             <span>Pair {i + 1}</span>

@@ -15,8 +15,8 @@
     "crates/codex32-wallet/src/ceremony.rs": "efef831b8b34406a9b58db3e89722fd08dde35704d3371a80e6ff220cb7d6565",
     "crates/codex32-wallet/src/lib.rs": "a97f1e7b67bc9ab3746df2bf2001fad9e40f703e10704cab65981faeebe3d631",
     "crates/codex32-wasm/Cargo.toml": "1af5fb2012e1d7f84028ee758881b40be7f7d3a7da69dcc67411ae534dd4a250",
-    "crates/codex32-wasm/src/lib.rs": "affc77d2f56587eabf602c41f0329d5e09dbb635a607c8b0680cf08aa861fc97",
+    "crates/codex32-wasm/src/lib.rs": "67c3d3b47204ba40f8373d7dc40625689cc5658a73dbef82eacd0a4ff1dd41e9",
     "rust-toolchain.toml": "9500030ccefd0bab631fb7f1763f79f4103eca3a344c36cf15be869e330683bb"
   },
-  "wasmSha256": "4da9687b3a34386c96b3d671436b97c71992f82ca6cb165417e7a3c373e3f2c3"
+  "wasmSha256": "551fc20898c3234bd7ee673cda5f375d87c22223475b0cf612df5a856bda6d16"
 }

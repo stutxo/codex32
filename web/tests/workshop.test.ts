@@ -191,7 +191,7 @@ await test('fresh practice sessions preserve all input characters, check every p
     assert.equal(session.kind, 'fresh');
     assert.equal(session.shares.A.slice(9, 35), characters.slice(0, 26));
     assert.equal(session.shares.C.slice(9, 35), characters.slice(26));
-    assert.match(session.shares.A, /^MS12PLAYA/);
+    assert.match(session.shares.A, /^MS12TESTA/);
     assert.equal(session.addresses.length, 3);
     session.addresses.forEach((address) => assert.match(address, /^tb1p/));
     secrets.add(session.secret);

@@ -143,6 +143,7 @@ export function checksumExercise(
         kind: 'copy',
         left: row.shifted,
         answer: row.pair,
+        position: row.offset + 4,
         direction: 'up',
       },
       {

@@ -65,10 +65,12 @@ export default function Wheel({
   controls = true,
   factorSide,
   onFactorSide,
+  guided,
 }: WheelProps & {
   controls?: boolean;
   factorSide: boolean;
   onFactorSide: (value: boolean) => void;
+  guided?: { primary: string; other: string };
 }) {
   const id = useId();
   const primary =
@@ -94,6 +96,15 @@ export default function Wheel({
   const window = additionWindows.find((item) => item.letter === other)!;
   const isMultiplication = kind === 'translation' || kind === 'fusion';
   const zero = isMultiplication && primary === 'Q';
+  const canRead =
+    !guided ||
+    (primary === guided.primary && !(kind === 'translation' && factorSide));
+  const discGuide = guided
+    ? {
+        primary: guided.primary,
+        other: canRead ? guided.other : undefined,
+      }
+    : undefined;
   const primaryLabel =
     kind === 'recovery'
       ? 'Share to translate'
@@ -123,6 +134,7 @@ export default function Wheel({
         aria-labelledby={`${id}-title ${id}-desc`}
         onPointerDown={(event) => {
           moved.current = false;
+          if (guided) return;
           const rect = event.currentTarget.getBoundingClientRect();
           const x = event.clientX - rect.left - rect.width / 2,
             y = event.clientY - rect.top - rect.height / 2;
@@ -174,9 +186,10 @@ export default function Wheel({
       >
         <title id={`${id}-title`}>{names[kind]} wheel</title>
         <desc id={`${id}-desc`}>
-          Drag the inner disc to change {primaryLabel.toLowerCase()}. Read{' '}
-          {other} to get {answer ?? 'an invalid index pair'}. Use the labeled
-          controls beside the worksheet for keyboard access.
+          {guided
+            ? `Set ${guided.primary}, then read ${guided.other}. Only the required characters can be selected in this guided workbook.`
+            : `Drag the inner disc to change ${primaryLabel.toLowerCase()}. Read ${other} to get ${answer ?? 'an invalid index pair'}.`}{' '}
+          Use the labeled controls beside the worksheet for keyboard access.
         </desc>
         <g id={`${id}-paper`}>
           {kind === 'addition' ? (
@@ -184,6 +197,7 @@ export default function Wheel({
               id={id}
               angle={(slot * 360) / count}
               other={other}
+              guide={discGuide}
               onPrimary={(letter) => {
                 if (!moved.current) onPrimary(letter);
               }}
@@ -197,6 +211,7 @@ export default function Wheel({
               order={order}
               angle={(slot * 360) / count}
               other={other}
+              guide={discGuide}
               onPrimary={(letter) => {
                 if (!moved.current) onPrimary(letter);
               }}
@@ -207,41 +222,51 @@ export default function Wheel({
           )}
         </g>
       </svg>
-      {kind === 'addition' && (
-        <figure className="paper-magnifier">
-          <figcaption>Window {other} · enlarged</figcaption>
-          <svg
-            viewBox={`${window.x - 24} ${window.y - 10} 33 20`}
-            aria-hidden="true"
+      {kind === 'addition' &&
+        (!guided || (canRead && other === guided.other)) && (
+          <figure className="paper-magnifier">
+            <figcaption>Window {other} · enlarged</figcaption>
+            <svg
+              viewBox={`${window.x - 24} ${window.y - 10} 33 20`}
+              aria-hidden="true"
+            >
+              <use
+                href={`#${id}-paper`}
+                transform={`rotate(${(-slot * 360) / count})`}
+              />
+            </svg>
+          </figure>
+        )}
+      {!guided && (
+        <div className="wheel-turn-buttons">
+          <button
+            className="secondary-button"
+            onClick={() => onPrimary(order[nextSlot(slot, -1, count)])}
+            aria-label="Turn wheel one position counterclockwise"
           >
-            <use
-              href={`#${id}-paper`}
-              transform={`rotate(${(-slot * 360) / count})`}
-            />
-          </svg>
-        </figure>
+            <ChevronLeft size={17} />
+          </button>
+          <span>
+            {kind === 'addition'
+              ? 'Point to the first character. Read the labeled window.'
+              : 'Drag the handle to turn the printed disc.'}
+          </span>
+          <button
+            className="secondary-button"
+            onClick={() => onPrimary(order[nextSlot(slot, 1, count)])}
+            aria-label="Turn wheel one position clockwise"
+          >
+            <ChevronRight size={17} />
+          </button>
+        </div>
       )}
-      <div className="wheel-turn-buttons">
-        <button
-          className="secondary-button"
-          onClick={() => onPrimary(order[nextSlot(slot, -1, count)])}
-          aria-label="Turn wheel one position counterclockwise"
-        >
-          <ChevronLeft size={17} />
-        </button>
-        <span>
-          {kind === 'addition'
-            ? 'Point to the first character. Read the labeled window.'
-            : 'Drag the handle to turn the printed disc.'}
-        </span>
-        <button
-          className="secondary-button"
-          onClick={() => onPrimary(order[nextSlot(slot, 1, count)])}
-          aria-label="Turn wheel one position clockwise"
-        >
-          <ChevronRight size={17} />
-        </button>
-      </div>
+      {guided && (
+        <p className="wheel-guided-note">
+          The highlighted characters match this worksheet column. Use the
+          buttons beside the worksheet, or tap those characters on the
+          instrument.
+        </p>
+      )}
       {kind === 'translation' && (
         <button
           className="secondary-button wheel-flip"
@@ -261,6 +286,8 @@ export default function Wheel({
           target={target}
           onPrimary={onPrimary}
           onOther={onOther}
+          expected={guided}
+          factorSide={factorSide}
         />
       )}
       <p className="wheel-footnote">
@@ -291,17 +318,16 @@ export function WheelControls({
   onPrimary,
   onOther,
   expected,
-}: WheelProps & { expected?: { primary: string; other: string } }) {
+  factorSide = false,
+}: WheelProps & {
+  expected?: { primary: string; other: string };
+  factorSide?: boolean;
+}) {
   const id = useId();
   const primary =
     (kind === 'translation' || kind === 'fusion') && requestedPrimary === 'Q'
       ? 'P'
       : requestedPrimary;
-  const factorChoice =
-    kind === 'translation' || kind === 'fusion'
-      ? alphabet.replace('Q', '')
-      : alphabet;
-  const choice = kind === 'recovery' ? recoveryOrder(engine, target) : alphabet;
   const primaryLabel =
     kind === 'recovery'
       ? 'Share to translate'
@@ -317,133 +343,140 @@ export function WheelControls({
           ? 'Factor to combine'
           : 'Character to translate';
   const answer = wheelAnswer(engine, kind, primary, other, target);
-  const aligned =
-    !expected || (primary === expected.primary && other === expected.other);
-  const guidedAddition = kind === 'addition' && expected;
+  const canRead =
+    !expected ||
+    (primary === expected.primary && !(kind === 'translation' && factorSide));
+  const aligned = !expected || (canRead && other === expected.other);
   const nextAction =
     !expected || aligned
       ? 'write'
       : primary !== expected.primary
         ? 'turn'
-        : 'read';
-  const reading = (
-    <output className="wheel-output" aria-live="polite">
-      <strong className="wheel-reading" aria-hidden="true">
-        {answer ?? '—'}
-      </strong>
-      <span>
-        <b className="reading-label">
-          {aligned ? 'Result · write this character' : 'Current wheel reading'}
-        </b>
-        {answer
-          ? `${primary} ${kind === 'recovery' ? `with ${other}, toward ${target}` : `${kind === 'addition' ? '+' : '×'} ${other}`} = ${answer}${kind === 'recovery' || kind === 'fusion' ? ` (${symbol(answer)})` : ''}`
-          : 'Choose distinct share indices, neither equal to the target.'}
-      </span>
-    </output>
-  );
+        : !canRead
+          ? 'flip'
+          : 'read';
+  const choice = kind === 'recovery' ? recoveryOrder(engine, target) : alphabet;
+  const primaryChoices =
+    kind === 'translation' || kind === 'fusion'
+      ? alphabet.replace('Q', '')
+      : choice;
+  const setLabel =
+    kind === 'addition'
+      ? 'Point the arrow at'
+      : kind === 'recovery'
+        ? 'Point the handle at'
+        : 'Set the factor to';
+  const readLabel = kind === 'addition' ? 'Read window' : 'Read character';
   return (
     <div
       className="wheel-calculator"
       data-aligned={aligned}
       data-next-action={nextAction}
     >
-      {guidedAddition && (
+      {expected && (
         <p className="wheel-next-instruction" aria-live="polite">
           {nextAction === 'turn' ? (
             <>
-              First, point the black arrow at <b>{expected.primary}</b> on the
-              outside rim. It currently points at {primary}.
+              First, {setLabel.toLowerCase()} <b>{expected.primary}</b>. Use
+              button 1 below or the highlighted character on the instrument.
+            </>
+          ) : nextAction === 'flip' ? (
+            <>
+              The factor is set. Use “Turn over to translate” below the wheel to
+              read from its other face.
             </>
           ) : nextAction === 'read' ? (
             <>
-              The arrow is at <b>{expected.primary}</b>. Now find the window
-              labeled <b>{expected.other}</b> on the dragon.
+              The setting is correct. Now {readLabel.toLowerCase()}{' '}
+              <b>{expected.other}</b> using button 2 or the highlighted
+              character.
             </>
           ) : (
             <>
-              Read the letter through window <b>{expected.other}</b>, then write
-              it in the answer box below.
+              {kind === 'addition'
+                ? 'Read the letter through window '
+                : 'Read the result for '}
+              <b>{expected.other}</b>, then write it in the answer box below.
             </>
           )}
         </p>
       )}
       <div className="wheel-controls">
-        <label htmlFor={`${id}-primary`}>
-          {primaryLabel}
-          {expected && (
-            <small>
-              {guidedAddition ? '1. Point the arrow at ' : '1. Set to '}
-              <b>{expected.primary}</b>
-              {kind === 'translation' ? ' · ' + symbol(expected.primary) : ''}
-            </small>
-          )}
-          <NativeSelect
-            id={`${id}-primary`}
-            value={primary}
-            onChange={(e) => onPrimary(e.target.value)}
-          >
-            {(kind === 'recovery' ? choice : factorChoice)
-              .split('')
-              .map((c) => (
-                <NativeSelectOption key={c} value={c}>
-                  {c}
-                  {kind === 'fusion' || kind === 'translation'
-                    ? ` · ${symbol(c)}`
-                    : ''}
-                </NativeSelectOption>
-              ))}
-          </NativeSelect>
-          {guidedAddition && (
-            <span className="wheel-control-help">
-              Turn the disc, click {expected.primary} on the rim, or choose it
-              here.
-            </span>
-          )}
-        </label>
-        <label htmlFor={`${id}-other`}>
-          {otherLabel}
-          {expected && (
-            <small>
-              {guidedAddition ? '2. Find window ' : '2. Read '}
-              <b>{expected.other}</b>
-            </small>
-          )}
-          <NativeSelect
-            id={`${id}-other`}
-            value={other}
-            onChange={(e) => onOther(e.target.value)}
-          >
-            {choice.split('').map((c) => (
-              <NativeSelectOption key={c} value={c}>
-                {c}
-                {kind === 'fusion' ? ` · ${symbol(c)}` : ''}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          {guidedAddition && (
-            <span className="wheel-control-help">
-              Click the {expected.other} label on the dragon, or choose it here
-              to enlarge that window.
-            </span>
-          )}
-        </label>
+        {expected ? (
+          <>
+            <div className="guided-wheel-control">
+              <span>{primaryLabel}</span>
+              <button
+                type="button"
+                className="secondary-button"
+                aria-pressed={primary === expected.primary}
+                onClick={() => onPrimary(expected.primary)}
+              >
+                1. {setLabel} {expected.primary}
+                {kind === 'translation' ? ' · ' + symbol(expected.primary) : ''}
+              </button>
+            </div>
+            <div className="guided-wheel-control">
+              <span>{otherLabel}</span>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={!canRead}
+                aria-pressed={aligned}
+                onClick={() => onOther(expected.other)}
+              >
+                2. {readLabel} {expected.other}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label htmlFor={`${id}-primary`}>
+              {primaryLabel}
+              <NativeSelect
+                id={`${id}-primary`}
+                value={primary}
+                onChange={(event) => onPrimary(event.target.value)}
+              >
+                {primaryChoices.split('').map((character) => (
+                  <NativeSelectOption key={character} value={character}>
+                    {character}
+                    {kind === 'translation' || kind === 'fusion'
+                      ? ' · ' + symbol(character)
+                      : ''}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </label>
+            <label htmlFor={`${id}-other`}>
+              {otherLabel}
+              <NativeSelect
+                id={`${id}-other`}
+                value={other}
+                onChange={(event) => onOther(event.target.value)}
+              >
+                {choice.split('').map((character) => (
+                  <NativeSelectOption key={character} value={character}>
+                    {character}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </label>
+          </>
+        )}
       </div>
-      {expected && !guidedAddition && (
-        <p className="wheel-alignment">
-          {aligned
-            ? 'The wheel is set. Write its result below.'
-            : 'Set both characters above to match this column.'}
-        </p>
-      )}
-      {guidedAddition && !aligned ? (
-        <details className="current-wheel-detail">
-          <summary>
-            See the reading at your current setting ({primary} + {other})
-          </summary>
-          {reading}
-        </details>
-      ) : (
-        reading
+      {aligned && (
+        <output className="wheel-output" aria-live="polite">
+          <strong className="wheel-reading" aria-hidden="true">
+            {answer ?? '—'}
+          </strong>
+          <span>
+            <b className="reading-label">Result · write this character</b>
+            {answer
+              ? `${primary} ${kind === 'recovery' ? `with ${other}, toward ${target}` : `${kind === 'addition' ? '+' : '×'} ${other}`} = ${answer}${kind === 'recovery' || kind === 'fusion' ? ` (${symbol(answer)})` : ''}`
+              : 'Choose distinct share indices, neither equal to the target.'}
+          </span>
+        </output>
       )}
     </div>
   );

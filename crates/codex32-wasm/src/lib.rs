@@ -38,7 +38,7 @@ pub fn create_practice_share(index: &str, payload: &str) -> Result<Backup, JsVal
         ));
     }
     Ok(Backup {
-        inner: Codex32::from_payload(2, "play".parse().expect("fixed identifier"), index, payload)
+        inner: Codex32::from_payload(2, "test".parse().expect("fixed identifier"), index, payload)
             .map_err(js_error)?,
     })
 }
