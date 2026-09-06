@@ -1,25 +1,45 @@
-# Codex32 practice companion
+# Codex32
 
 A static, illustrated volvelle workshop using the repository's Rust/WASM library.
 The workbench uses built-in public examples and Signet address previews. The share
 checker accepts text for local validation; do not enter real backups. There is no
-account, storage, chain connection, balance, signing, or broadcast flow.
+account, chain connection, balance, signing, or broadcast flow.
 
 The home page `/` starts with an empty new-key worksheet; the published example
 is loaded only when requested. The recovery workbench, share checker, and printable
 cards share the main page in a workbench tab. Previous `/workshop` and `/workbench`
 URLs redirect to the corresponding view on the main page.
-The workshop offers draggable Recovery, Translation, Addition, and Fusion wheels,
-keyboard controls, character-by-character derivation/recovery, and the paper's
-48-character checksum worksheet. Its dice exercise creates disposable fresh test
+The workshop puts a large, draggable volvelle beside the learner's answer sheet,
+with keyboard controls, character-by-character derivation/recovery, and the paper's
+48-character checksum worksheet. Each checksum has 98 checked entries: the final
+row, initial addition, 16 lookup/shift/add rounds, and 16 upward addition/copy/reverse-shift
+rounds. Deriving D or recovering S requires both factors and the two translations
+and addition for each of the 45 characters after MS1. Incorrect or incomplete
+answers remain editable and do not advance the worksheet. The worked-example
+toggle reveals answers with separate navigation and wheel settings; viewing an
+answer never completes the learner's entry.
+
+The dice exercise creates disposable fresh test
 keys from browser cryptographic randomness: two independent 26-character initial
 shares determine a 128-bit seed, and every pair of the resulting A/C/D shares must
-recover the same encoded S before the session is accepted. Sessions stay in memory.
+recover the same encoded S before the session is accepted.
 The persistent “Create my test backup” action preserves any rolled characters and
 securely fills the rest. Completing each worksheet advances through checksum A,
 checksum C, share D, and recovery; earlier stages remain available for review.
 The Recovery ring's default target is S; the D lesson explicitly relabels it. The
 Addition wheel uses a digital window layout for the paper's XOR lookup table.
+
+Practice work is saved automatically in this browser's localStorage, under
+`codex32.practice-workbooks.v1`. It includes initial A/C shares, unfinished dice
+characters and the last roll, submitted and draft worksheet answers, wheel
+settings, and the current step. Fresh and published workbooks have independent
+progress. Reloading validates the initial shares and accepted answers and recomputes
+derived outputs with WASM. Unreadable saves are preserved until the learner chooses
+to clear them. A failed save is reported on the page. “Clear saved work” erases
+both practice workbooks after confirmation; it leaves unrelated browser storage alone.
+Saving is local to this browser and origin, with no cross-device synchronization.
+Clearing browser data removes the saved workbook. The share checker's pasted text
+is never saved.
 
 ## Development
 
@@ -44,14 +64,17 @@ button component with explicit native appearance and readable enabled/disabled
 colors. Regressions check its rendered contrast without a stylesheet and enforce
 its use throughout the workshop and workbench.
 
-The 30 automated tests also check all 1,024 additions and multiplications,
+The 38 automated tests also check all 1,024 additions and multiplications,
 physical alignment on both multiplication faces, 29,760 pair/target weight cases,
 all cells in four published recovery/derivation lessons, eight independent checksum
 traces, fresh sessions, malformed WASM arguments, unbiased sampling, rejected dice
 ties/out-of-range bytes, randomness failure, and wheel position wrapping.
 They also cover creating backups from partial dice drafts, failure before replacing
 a session, automatic stage progression, alternate checksum order, the new-key default,
-and progress retained across workbench visits and review/reset actions.
+and progress retained across workbench visits and review/reset actions. Manual
+workbook coverage verifies every required entry, rejects wrong answers and skipped
+steps, isolates example controls, restores partial drafts and wheel settings,
+revalidates completed steps, and preserves unreadable saves and storage failures.
 
 Regenerate the public wheel fixtures and display tables from the pinned BIP93 Python
 reference with `python3 scripts/generate-volvelle-fixtures.py` in the repository root.
@@ -70,18 +93,20 @@ case and punctuation, never corrects errors, and never reflects input in errors.
 Rust objects are explicitly freed. Browser JavaScript memory is not reliably
 erasable; this site is not suitable for real secrets.
 
-There is no application telemetry, input persistence, external font loading, or
+There is no application telemetry, external font loading, or
 request carrying entered strings. The workbench's print action uses fixed public cards,
 independent of checker input or current tab. Each card gets its own monochrome page
 with A4/Letter-friendly margins.
 
 An optional `document.modelContext` tool exposes only public practice recovery.
 Its pure contract has automated tests. No supported browser WebMCP context was
-available to verify registration and live page state. A Chromium smoke test of
-the root-domain export verified the new-key default, enabled create-button
-contrast, actual WASM loading, public-example recovery and its three addresses,
-and both legacy redirects without browser or internal request errors. Visual
-review across browsers and physical print testing were not performed.
+available to verify registration and live page state. Chromium verification of
+the root-domain export exercises the complete manual A/C checksum → D → S journey,
+all three recovered address comparisons, draft and dice restoration after reload,
+independent examples, unreadable-save protection, and the existing recovery
+workbench. Layout checks cover widths from 375 to 1600 pixels, with readable
+primary actions and no horizontal overflow. Other browser engines and physical
+printing have not been tested.
 
 ## GitHub Pages
 

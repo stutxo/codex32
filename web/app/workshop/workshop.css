@@ -1,6 +1,7 @@
 .workshop-shell {
   padding: 0 4%;
 }
+
 .back-to-workbench {
   display: flex;
   gap: 8px;
@@ -1062,4 +1063,315 @@
 .finished-string:focus {
   outline: 2px solid var(--primary);
   outline-offset: 4px;
+}
+
+/* The instrument takes the broad page; the learner writes on the facing leaf. */
+.site-shell.workshop-shell {
+  max-width: 1640px;
+  padding-inline: clamp(16px, 3vw, 48px);
+}
+.workshop-title {
+  padding-block: 16px;
+}
+.codex-title {
+  font-family: Georgia, serif;
+  font-size: clamp(3rem, 5vw, 5rem);
+  line-height: 1;
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  color: var(--red);
+}
+.codex-title span {
+  font-size: 0.8em;
+  letter-spacing: -0.075em;
+}
+.workbook-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 12px 0 22px;
+  font-size: 0.875rem;
+}
+.example-switch {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.example-switch input {
+  accent-color: var(--primary);
+  width: 21px;
+  height: 21px;
+}
+.save-status {
+  margin-left: auto;
+  color: var(--muted-foreground);
+}
+.workshop-spread.manual-spread {
+  grid-template-columns: minmax(0, 1.65fr) minmax(360px, 1fr);
+}
+.magic-instrument {
+  padding: clamp(16px, 2vw, 32px);
+  width: 100%;
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    #faf1d9 15%,
+    #ece0bd 72%,
+    #e3d4ae
+  );
+}
+.instrument-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #bbad88;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.magic-instrument .wheel-tool {
+  width: 100%;
+  max-width: none;
+  margin-inline: auto;
+}
+.magic-instrument .volvelle {
+  width: 100%;
+  max-width: 840px;
+  margin-inline: auto;
+}
+.magic-instrument .wheel-heading {
+  margin-top: 16px;
+}
+.wheel-task {
+  text-align: center;
+  margin: 20px auto 0;
+  max-width: 620px;
+  border-top: 1px solid #bbad88;
+  padding-top: 18px;
+}
+.wheel-task strong {
+  font-family: Georgia, serif;
+  color: var(--primary);
+  font-size: 1.35rem;
+}
+.wheel-task p {
+  margin: 8px 0 14px;
+  font-size: 1rem;
+}
+.manual-worksheet {
+  padding: clamp(18px, 2.1vw, 34px);
+}
+.manual-instruction {
+  margin-top: 24px;
+}
+.manual-instruction h2 {
+  font-family: Georgia, serif;
+  font-size: clamp(1.7rem, 2.4vw, 2.4rem);
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--red);
+  margin: 10px 0 18px;
+}
+.manual-instruction p,
+.manual-givens p,
+.table-reference p {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.manual-givens {
+  margin-block: 24px;
+}
+.manual-givens > span {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin-block: 8px;
+}
+.operand-cells {
+  display: grid;
+  grid-template-columns: repeat(var(--cell-count), minmax(0, 1fr));
+  gap: 2px;
+}
+.operand-cells button {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 8px 0;
+  background: #f0e8d4;
+  color: var(--foreground);
+  font-family: 'Courier New', monospace;
+  font-size: 1.125rem;
+  min-height: 44px;
+}
+.operand-cells button span {
+  display: block;
+  line-height: 1.65;
+}
+.operand-cells button[aria-pressed='true'] {
+  background: #493d78;
+  color: #fff9e9;
+  border-color: #493d78;
+}
+.answer-form {
+  margin-top: 28px;
+}
+.answer-form label {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.answer-form input {
+  display: block;
+  width: 100%;
+  background: #fffbee;
+  color: #302c24;
+  border: 1px solid #978964;
+  border-bottom: 3px solid var(--primary);
+  border-radius: 0;
+  padding: 14px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: clamp(1.05rem, 1.6vw, 1.4rem);
+  letter-spacing: 0.13em;
+  margin-bottom: 16px;
+}
+.answer-form input:focus-visible,
+.table-pickers select:focus-visible {
+  outline: 3px solid #a292bd;
+  outline-offset: 3px;
+}
+.answer-form input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+.answer-form .primary-button {
+  width: 100%;
+}
+.answer-error {
+  font-size: 1rem;
+  color: var(--red);
+  margin: 0 0 16px;
+}
+.example-answer {
+  padding: 20px;
+  margin-top: 26px;
+  background: #eee8f3;
+  border-left: 3px solid var(--primary);
+}
+.example-answer > span {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.example-answer code {
+  display: block;
+  font-size: 1.35rem;
+  overflow-wrap: anywhere;
+  margin-block: 12px;
+}
+.example-answer p {
+  font-size: 0.9375rem;
+}
+.manual-progress {
+  margin: 24px 0;
+  font-size: 0.875rem;
+}
+.manual-progress progress {
+  display: block;
+  width: 100%;
+  height: 7px;
+  margin-top: 10px;
+  accent-color: var(--primary);
+}
+.table-reference {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #baaa83;
+  background: #fbf5e7;
+}
+.table-reference h3 {
+  font-family: Georgia, serif;
+  color: var(--red);
+  font-size: 1.7rem;
+  font-weight: 400;
+}
+.table-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin: 16px 0;
+}
+.table-pickers label {
+  flex: 1;
+  min-width: 110px;
+  font-size: 0.875rem;
+}
+.table-pickers select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 12px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--primary);
+  font-size: 1.125rem;
+}
+.table-reference output {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 1.2rem;
+  color: var(--primary);
+}
+.completed-checksum {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.12em;
+}
+.restart-lesson {
+  margin-top: 24px;
+}
+@media (max-width: 980px) {
+  .workshop-spread.manual-spread {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .manual-spread .magic-instrument {
+    position: static;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .magic-instrument .wheel-tool {
+    max-width: 760px;
+  }
+  .manual-worksheet {
+    padding: 26px;
+  }
+  .answer-form input {
+    font-size: 1.4rem;
+  }
+}
+@media (max-width: 520px) {
+  .workbook-tools {
+    gap: 12px;
+  }
+  .save-status {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .manual-worksheet,
+  .magic-instrument {
+    padding: 16px 12px;
+  }
+  .instrument-caption > span:last-child {
+    display: none;
+  }
+  .operand-cells button {
+    font-size: 1rem;
+  }
+  .answer-form input {
+    font-size: 1.15rem;
+    letter-spacing: 0.09em;
+  }
 }

@@ -2,19 +2,15 @@
 import Image from 'next/image';
 import BookButton from '@/components/book-button';
 import { publicAsset } from '@/lib/public-asset';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import BookCredits from '@/components/book-credits';
 import BookHeading from '@/components/book-heading';
 import Workbench, { PracticeCards } from '../workbench/workbench';
 import {
-  ArrowLeft,
   ArrowRight,
   BookOpen,
-  Check,
-  CheckCircle2,
   Dices,
-  RotateCcw,
   ShieldCheck,
   WandSparkles,
 } from 'lucide-react';
@@ -29,605 +25,148 @@ import {
   ProgressValue,
 } from '@/components/ui/progress';
 import { loadEngine } from '@/lib/engine';
-import { grouped, type Engine } from '@/lib/practice';
+import { type Engine } from '@/lib/practice';
 import {
-  checksumWorksheet,
   completePracticeSession,
   publishedSession,
+  sessionFromInitial,
   randomCharacters,
   rollDiceCharacter,
-  symbol,
-  translationLesson,
   wheelData,
   type DiceResult,
   type Pair,
   type WorkshopSession,
 } from '@/lib/workshop';
-import Wheel, { wheelAnswer, type WheelKind } from './wheel';
+import ManualLesson from './manual-lesson';
 import './workshop.css';
 
-import { initialFlow, workshopFlow, type Phase } from '@/lib/workshop-flow';
+import { workshopFlow, type Phase, type FlowAction } from '@/lib/workshop-flow';
+import {
+  checksumExercise,
+  shareExercise,
+  emptyBook,
+  emptyLesson,
+  emptyWorkbooks,
+  readWorkbooks,
+  saveWorkbooks,
+  showExample,
+  STORAGE_KEY,
+  type Book,
+} from '@/lib/workbook';
 const glyphs = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-
-function Lesson({
-  engine,
-  session,
-  pair,
-  target,
-  onComplete,
-  onRestart,
-}: {
-  engine: Engine;
-  session: WorkshopSession;
-  pair: Pair;
-  target: 'D' | 'S';
-  onComplete: () => void;
-  onRestart: () => void;
-}) {
-  const lesson = useMemo(
-    () => translationLesson(engine, session, pair, target),
-    [engine, session, pair, target],
-  );
-  const [cursor, setCursor] = useState(6);
-  const [step, setStep] = useState(0);
-  const [completed, setCompleted] = useState<Set<number>>(() => new Set());
-  const [primary, setPrimary] = useState('Q');
-  const [other, setOther] = useState<string>(pair[1]);
-  const [play, setPlay] = useState(false);
-  const [playKind, setPlayKind] = useState<WheelKind>('addition');
-  const column = lesson.columns[cursor];
-  const operations = [
-    {
-      kind: 'recovery' as const,
-      a: pair[0],
-      b: pair[1],
-      title: `Find the factor for share ${pair[0]}.`,
-      instruction: `Point the handle at ${pair[0]}. Read the symbol at ${pair[1]}.`,
-      answer: lesson.weights[0],
-    },
-    {
-      kind: 'recovery' as const,
-      a: pair[1],
-      b: pair[0],
-      title: `Now reverse the roles.`,
-      instruction: `Point the handle at ${pair[1]}. Read the symbol at ${pair[0]}. This is a different factor.`,
-      answer: lesson.weights[1],
-    },
-    {
-      kind: 'translation' as const,
-      a: lesson.weights[0],
-      b: column.inputs[0],
-      title: `Translate share ${pair[0]}’s character.`,
-      instruction: `Set factor ${symbol(lesson.weights[0])} (${lesson.weights[0]}). Find ${column.inputs[0]} on the inner ring and read its outer character.`,
-      answer: column.translated[0],
-    },
-    {
-      kind: 'translation' as const,
-      a: lesson.weights[1],
-      b: column.inputs[1],
-      title: `Translate share ${pair[1]}’s character.`,
-      instruction: `Set factor ${symbol(lesson.weights[1])} (${lesson.weights[1]}), then read ${column.inputs[1]}.`,
-      answer: column.translated[1],
-    },
-    {
-      kind: 'addition' as const,
-      a: column.translated[0],
-      b: column.translated[1],
-      title: 'Combine the translated characters.',
-      instruction: `Turn to ${column.translated[0]} and read the ${column.translated[1]} window. The answer fills one cell of ${target === 'S' ? 'the secret' : 'share D'}.`,
-      answer: column.result,
-    },
-  ];
-  const operation = operations[step];
-  const kind = play ? playKind : operation.kind;
-  const answer = wheelAnswer(engine, kind, primary, other, target);
-  const aligned =
-    !play &&
-    primary === operation.a &&
-    other === operation.b &&
-    answer === operation.answer;
-  const finished = completed.size === 45;
-  function align() {
-    setPrimary(operation.a);
-    setOther(operation.b as Pair[1]);
-  }
-  function record() {
-    if (!aligned) return;
-    if (step < 4) {
-      setStep(step + 1);
-      return;
-    }
-    const next = new Set(completed).add(cursor);
-    setCompleted(next);
-    if (next.size < 45) {
-      for (let i = 1; i <= 45; i++) {
-        const at = (cursor + i) % 45;
-        if (!next.has(at)) {
-          setCursor(at);
-          break;
-        }
-      }
-      setStep(2);
-    } else {
-      onComplete();
-    }
-  }
-  function completeRemaining() {
-    setCompleted(new Set(Array.from({ length: 45 }, (_, i) => i)));
-    onComplete();
-  }
-  return (
-    <>
-      <div className="workshop-spread">
-        <section className="instrument-page">
-          <div className="instrument-switch">
-            <button
-              className={!play ? 'is-current' : ''}
-              onClick={() => {
-                setPlay(false);
-                align();
-              }}
-            >
-              Guided wheel
-            </button>
-            <button
-              className={play ? 'is-current' : ''}
-              onClick={() => {
-                setPlay(true);
-                setPrimary('N');
-                setOther('V');
-              }}
-            >
-              Explore the wheels
-            </button>
-          </div>
-          {play && (
-            <label className="play-picker" htmlFor={`play-wheel-${target}`}>
-              Choose a wheel
-              <NativeSelect
-                id={`play-wheel-${target}`}
-                value={playKind}
-                onChange={(e) => {
-                  setPlayKind(e.target.value as WheelKind);
-                  setPrimary('A');
-                  setOther('C');
-                }}
-              >
-                <NativeSelectOption value="addition">
-                  Addition
-                </NativeSelectOption>
-                <NativeSelectOption value="translation">
-                  Translation
-                </NativeSelectOption>
-                <NativeSelectOption value="recovery">
-                  Recovery / derivation
-                </NativeSelectOption>
-                <NativeSelectOption value="fusion">Fusion</NativeSelectOption>
-              </NativeSelect>
-            </label>
-          )}
-          <Wheel
-            engine={engine}
-            kind={kind}
-            primary={primary}
-            other={other}
-            target={target}
-            onPrimary={setPrimary}
-            onOther={(value) => setOther(value as Pair[1])}
-          />
-        </section>
-        <section className="worksheet-page">
-          <div className="running-head">
-            <span>
-              {target === 'S' ? 'RECOVERY WORKSHEET' : 'TRANSLATION WORKSHEET'}
-            </span>
-            <span>
-              {pair.join(' + ')} → {target}
-            </span>
-          </div>
-          <div className="lesson-intro">
-            <BookHeading
-              text={
-                target === 'S'
-                  ? 'Bring the secret back.'
-                  : 'Create a third share.'
-              }
-            />
-            <p>
-              {target === 'S'
-                ? `Two distinct shares are enough. Translate ${pair[0]} and ${pair[1]}, then add their characters to recover S.`
-                : 'The two initial shares define a third. Translate A and C, then add their characters to make D.'}
-            </p>
-          </div>
-          <div className="factor-strip">
-            {pair.map((index, row) => (
-              <span key={index}>
-                Share {index}
-                <strong>
-                  {symbol(lesson.weights[row])}{' '}
-                  <small>({lesson.weights[row]})</small>
-                </strong>
-                <span>translation factor</span>
-              </span>
-            ))}
-          </div>
-          {!finished ? (
-            <div className="instruction-card">
-              <span className="small-label">
-                {step < 2
-                  ? `FIND THE FACTORS · ${step + 1} OF 2`
-                  : `COLUMN ${column.position} · ${column.region.toUpperCase()}`}
-              </span>
-              <h3>{operation.title}</h3>
-              <p>{operation.instruction}</p>
-              <div className="instruction-actions">
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    setPlay(false);
-                    align();
-                  }}
-                >
-                  <WandSparkles size={15} /> Align for me
-                </button>
-                <BookButton disabled={!aligned} onClick={record}>
-                  {step === 4 ? 'Write this character' : 'Record this result'}{' '}
-                  <ArrowRight size={16} />
-                </BookButton>
-              </div>
-              <output
-                className={
-                  aligned ? 'alignment-status is-correct' : 'alignment-status'
-                }
-              >
-                {aligned
-                  ? `Aligned: ${operation.answer} ${step < 2 ? `(${symbol(operation.answer)})` : ''}. Ready to record.`
-                  : play
-                    ? 'Exploring does not change the worksheet. Return to the guided wheel when ready.'
-                    : 'Turn the wheel, or use “Align for me” to follow the example.'}
-              </output>
-            </div>
-          ) : (
-            <div className="lesson-success" aria-live="polite">
-              <CheckCircle2 size={25} />
-              <h3>
-                {target === 'S' ? 'Secret recovered.' : 'Share D completed.'}
-              </h3>
-              <p>
-                The 45 worksheet characters match Rust’s result, including the
-                checksum.
-              </p>
-            </div>
-          )}
-          <div
-            className="column-calculation"
-            aria-label={`Calculation for column ${column.position}`}
-          >
-            <span>
-              {pair[0]}: <b>{column.inputs[0]}</b> × {lesson.weights[0]} ={' '}
-              <b>{column.translated[0]}</b>
-            </span>
-            <span>
-              {pair[1]}: <b>{column.inputs[1]}</b> × {lesson.weights[1]} ={' '}
-              <b>{column.translated[1]}</b>
-            </span>
-            <strong>
-              {column.translated.join(' + ')} = {column.result}
-            </strong>
-          </div>
-          <div className="worksheet-progress">
-            <Progress value={(completed.size / 45) * 100}>
-              <ProgressLabel>Worksheet cells</ProgressLabel>
-              <ProgressValue>{() => `${completed.size} / 45`}</ProgressValue>
-            </Progress>
-          </div>
-          <div className="character-worksheet">
-            <span className="fixed-prefix">MS1</span>
-            <div className="character-cells">
-              {lesson.columns.map((c, index) => (
-                <button
-                  key={c.position}
-                  className={`${index === cursor ? 'is-active' : ''} ${completed.has(index) ? 'is-filled' : ''} ${index >= 32 ? 'is-checksum' : ''}`}
-                  onClick={() => {
-                    setCursor(index);
-                    setStep(2);
-                    setPlay(false);
-                  }}
-                  aria-label={`Inspect position ${c.position}, ${c.region}${completed.has(index) ? `, ${c.result}` : ', empty'}`}
-                  aria-pressed={index === cursor}
-                >
-                  {completed.has(index) ? c.result : '·'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <p className="worksheet-caption">
-            MS1 stays fixed. Click any cell to inspect its calculation. Rose
-            cells hold the checksum.
-          </p>
-          <div className="worksheet-actions">
-            <button
-              className="secondary-button"
-              onClick={() => {
-                setCompleted(new Set());
-                setStep(0);
-                setCursor(6);
-                setPlay(false);
-                setPrimary(pair[0]);
-                setOther(pair[1]);
-                onRestart();
-              }}
-            >
-              <RotateCcw size={15} /> Start over
-            </button>
-            <button
-              className="text-button"
-              disabled={finished}
-              onClick={completeRemaining}
-            >
-              Complete the remaining steps <ArrowRight size={15} />
-            </button>
-          </div>
-          {finished && (
-            <div
-              className="finished-string"
-              data-recovery-result={target === 'S' ? 'true' : undefined}
-              tabIndex={-1}
-            >
-              <span className="small-label">
-                {session.kind === 'fresh'
-                  ? 'DISPOSABLE EDUCATIONAL'
-                  : 'PUBLISHED PRACTICE'}{' '}
-                {target === 'S' ? 'SECRET' : 'SHARE D'}
-              </span>
-              <code>{grouped(lesson.output)}</code>
-              {target === 'D' && (
-                <BookButton onClick={onComplete}>
-                  Continue to recovery <ArrowRight size={16} />
-                </BookButton>
-              )}
-              {target === 'S' && (
-                <>
-                  <h3>The same test wallet.</h3>
-                  <p>
-                    {session.kind === 'published'
-                      ? 'These Signet addresses match the independently derived published-example expectations.'
-                      : 'These Signet addresses match the test seed created at the start of this session.'}
-                  </p>
-                  <ol className="address-list">
-                    {session.addresses.map((address, i) => (
-                      <li key={address}>
-                        <div>
-                          <span>Receive address {i + 1}</span>
-                          <span className="match">
-                            <Check size={14} /> Match
-                          </span>
-                        </div>
-                        <code>{address}</code>
-                      </li>
-                    ))}
-                  </ol>
-                </>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-      <aside className="lesson-footnote">
-        <BookOpen size={18} />
-        <p>
-          The paper method translates every character after MS1, including the
-          header and checksum. Intermediate translated rows are working data,
-          not valid shares on their own.{' '}
-          <a href={wheelData.sources.paper} target="_blank" rel="noreferrer">
-            See the original codex ↗
-          </a>
-        </p>
-      </aside>
-    </>
-  );
-}
-
-function ChecksumLesson({
-  engine,
-  encoded,
-  onComplete,
-  nextLabel,
-}: {
-  engine: Engine;
-  encoded: string;
-  onComplete: () => void;
-  nextLabel: string;
-}) {
-  const worksheet = useMemo(
-    () => checksumWorksheet(engine, encoded, true),
-    [engine, encoded],
-  );
-  const [cursor, setCursor] = useState(0);
-  const [primary, setPrimary] = useState(worksheet.initialData[0]);
-  const [other, setOther] = useState(worksheet.initialRow[0]);
-  const steps = [
-    {
-      label: 'Start with the prefilled row',
-      description:
-        'Add the first 13 characters after MS1 to the paper’s prefilled row, one column at a time.',
-      left: worksheet.initialData,
-      right: worksheet.initialRow,
-      result: worksheet.initialSum,
-    },
-    ...worksheet.forward.map((row, i) => ({
-      label: `Forward row ${i + 1} of 16`,
-      description: `Look up ${row.key} in the checksum table. Shift the working row left by two, bring in the next two characters, and add the lookup row. ? marks a checksum cell still to solve.`,
-      left: row.shifted,
-      right: row.lookup,
-      result: row.after,
-    })),
-    ...worksheet.backward.map((row) => ({
-      label: `Work upward from row ${row.forwardStep}`,
-      description: `Start from ${row.forwardStep === 16 ? 'SECRETSHARE32' : 'the solved row'}. Add the lookup row to reverse this step. The final two cells give characters ${row.offset + 4} and ${row.offset + 5}: ${row.pair}.`,
-      left: row.solved,
-      right: row.lookup,
-      result: row.shifted,
-    })),
-  ];
-  function advance(next: number) {
-    setCursor(next);
-    if (next === steps.length) onComplete();
-  }
-  const done = cursor === steps.length;
-  const active = steps[Math.min(cursor, steps.length - 1)];
-  function inspectColumn(index: number) {
-    if (active.left[index] !== '?' && active.right[index] !== '?') {
-      setPrimary(active.left[index]);
-      setOther(active.right[index]);
-    }
-  }
-  return (
-    <div className="workshop-spread">
-      <section className="instrument-page">
-        <Wheel
-          engine={engine}
-          kind="addition"
-          primary={primary}
-          other={other}
-          onPrimary={setPrimary}
-          onOther={setOther}
-        />
-      </section>
-      <section className="worksheet-page">
-        <div className="running-head">
-          <span>CHECKSUM WORKSHEET</span>
-          <span>SHARE {encoded[8]}</span>
-        </div>
-        <BookHeading
-          text={done ? 'Checksum complete.' : 'Calculate the checksum.'}
-        />
-        <p className="serif-copy">
-          Follow the book’s 13-column worksheet. Work downward first, then fill
-          the missing checksum characters from the bottom up.
-        </p>
-        <div className="checksum-track">
-          <span className={cursor < 17 ? 'is-current' : ''}>
-            1. Work downward
-          </span>
-          <ArrowRight size={16} />
-          <span className={cursor >= 17 ? 'is-current' : ''}>
-            2. Solve upward
-          </span>
-        </div>
-        {done ? (
-          <div className="lesson-success" aria-live="polite">
-            <CheckCircle2 size={25} />
-            <h3>{worksheet.checksum}</h3>
-            <p>
-              The paper calculation matches the checksum produced by the Rust
-              library.
-            </p>
-            <code>{grouped(worksheet.output)}</code>
-          </div>
-        ) : (
-          <>
-            <div className="instruction-card">
-              <span className="small-label">
-                STEP {cursor + 1} OF {steps.length}
-              </span>
-              <h3>{active.label}</h3>
-              <p>{active.description}</p>
-            </div>
-            <div className="checksum-rows">
-              <div>
-                <span>Working row</span>
-                <code>{active.left}</code>
-              </div>
-              <div>
-                <span>+ Table / prefill</span>
-                <code>{active.right}</code>
-              </div>
-              <div className="checksum-result-row">
-                <span>= Result</span>
-                <div>
-                  {active.result.split('').map((c, i) => (
-                    <button
-                      key={i}
-                      disabled={c === '?'}
-                      onClick={() => inspectColumn(i)}
-                      aria-label={`Inspect checksum column ${i + 1}: ${active.left[i]} plus ${active.right[i]} equals ${c}`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <p className="worksheet-caption">
-              Click a known result cell to set up its addition on the wheel.
-            </p>
-          </>
-        )}
-        <Progress value={(cursor / steps.length) * 100}>
-          <ProgressLabel>Worksheet progress</ProgressLabel>
-          <ProgressValue>{() => `${cursor} / ${steps.length}`}</ProgressValue>
-        </Progress>
-        <div className="checksum-actions">
-          <button
-            className="secondary-button"
-            disabled={cursor === 0}
-            onClick={() => setCursor(cursor - 1)}
-          >
-            <ArrowLeft size={15} /> Back
-          </button>
-          <BookButton
-            onClick={() => (done ? onComplete() : advance(cursor + 1))}
-          >
-            {done
-              ? nextLabel
-              : cursor === steps.length - 1
-                ? 'Finish checksum and continue'
-                : 'Next row'}{' '}
-            <ArrowRight size={16} />
-          </BookButton>
-        </div>
-        <button
-          className="text-button"
-          disabled={done}
-          onClick={() => advance(steps.length)}
-        >
-          Complete the remaining steps <ArrowRight size={15} />
-        </button>
-        <details className="technical-note">
-          <summary>Why SECRETSHARE32?</summary>
-          <p>
-            A correct 48-character Codex32 string ends at this fixed
-            verification row. When generating a checksum, the bottom row is
-            already known, so the missing characters can be solved by reversing
-            the additions.
-          </p>
-          <p>
-            This worksheet is for 128-bit seeds with a 13-character checksum.
-          </p>
-        </details>
-      </section>
-    </div>
-  );
-}
 
 export default function Workshop() {
   const [engine, setEngine] = useState<Engine | null>(null);
-  const [session, setSession] = useState<WorkshopSession | null>(null);
-  const [flow, dispatchFlow] = useReducer(workshopFlow, initialFlow);
-  const { phase, checksumIndex } = flow;
+  const [workbooks, setWorkbooks] = useState(emptyWorkbooks);
+  const book = workbooks.books[workbooks.active];
+  const [loaded, setLoaded] = useState(false);
+  const [saveAllowed, setSaveAllowed] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('Opening your workbook…');
+  const [saveBlocked, setSaveBlocked] = useState(false);
+  const session = useMemo(
+    () =>
+      engine && book.initial
+        ? sessionFromInitial(engine, book.initial, workbooks.active)
+        : null,
+    [engine, book.initial, workbooks.active],
+  );
+  const flow = book.flow;
+  const phase = book.example && session ? book.examplePhase : flow.phase;
+  const checksumIndex = book.example
+    ? book.exampleChecksumIndex
+    : flow.checksumIndex;
+  const pairText = book.example ? book.examplePair : book.pair;
+  const draft = book.draft;
   const workshopElement = useRef<HTMLElement>(null);
-  const [pairText, setPairText] = useState('A,C');
-  const [draft, setDraft] = useState('');
-  const [dice, setDice] = useState<DiceResult | null>(null);
+  const dice = book.dice;
+  function setDice(value: DiceResult | null) {
+    updateBook((current) => ({ ...current, dice: value }));
+  }
   const [error, setError] = useState('');
+  function updateBook(change: (current: Book) => Book) {
+    setWorkbooks((current) => ({
+      ...current,
+      books: {
+        ...current.books,
+        [current.active]: change(current.books[current.active]),
+      },
+    }));
+  }
+  function dispatchFlow(action: FlowAction) {
+    updateBook((current) => ({
+      ...current,
+      flow: workshopFlow(current.flow, action),
+    }));
+  }
+  function navigate(next: Phase) {
+    if (next === 'random')
+      updateBook((current) => ({
+        ...current,
+        example: false,
+        flow: workshopFlow(current.flow, { type: 'navigate', phase: next }),
+      }));
+    else if (book.example && session)
+      updateBook((current) => ({ ...current, examplePhase: next }));
+    else dispatchFlow({ type: 'navigate', phase: next });
+  }
+  function setDraft(value: string | ((previous: string) => string)) {
+    updateBook((current) => ({
+      ...current,
+      draft: typeof value === 'function' ? value(current.draft) : value,
+    }));
+  }
+  function setPairText(pair: string) {
+    updateBook((current) =>
+      current.example
+        ? { ...current, examplePair: pair as Book['pair'] }
+        : { ...current, pair: pair as Book['pair'] },
+    );
+  }
+  const exercises = useMemo(() => {
+    if (!engine || !session) return null;
+    return {
+      'checksum-A': checksumExercise(engine, session.shares.A),
+      'checksum-C': checksumExercise(engine, session.shares.C),
+      derive: shareExercise(engine, session, ['A', 'C'], 'D'),
+      ['recover-' + pairText]: shareExercise(
+        engine,
+        session,
+        pairText.split(',') as Pair,
+        'S',
+      ),
+    };
+  }, [engine, session, pairText]);
+  const bothChecksums = flow.checksums.A && flow.checksums.C;
+  const derived = Boolean(
+    exercises &&
+    book.lessons.derive?.answers.length === exercises.derive.steps.length,
+  );
   useEffect(() => {
     let mounted = true;
     void loadEngine()
       .then((value) => {
-        if (mounted) {
-          setEngine(value);
+        if (!mounted) return;
+        setEngine(value);
+        try {
+          const restored = readWorkbooks(value, window.localStorage);
+          if (window.location.hash === '#workbench') {
+            const active = restored.books[restored.active];
+            active.flow = workshopFlow(active.flow, {
+              type: 'navigate',
+              phase: 'workbench',
+            });
+            active.examplePhase = 'workbench';
+          }
+          setWorkbooks(restored);
+          setSaveAllowed(true);
+          setSaveStatus('Saved in this browser');
+        } catch {
+          setSaveBlocked(true);
+          setSaveStatus(
+            'Saved work could not be opened. It has not been overwritten.',
+          );
         }
+        setLoaded(true);
       })
       .catch(() => {
         if (mounted)
@@ -639,8 +178,50 @@ export default function Workshop() {
       mounted = false;
     };
   }, []);
+  useEffect(() => {
+    if (!loaded || !saveAllowed) return;
+    try {
+      saveWorkbooks(window.localStorage, workbooks);
+      queueMicrotask(() => setSaveStatus('Saved in this browser'));
+    } catch {
+      queueMicrotask(() =>
+        setSaveStatus(
+          'This browser could not save your latest changes. Keep this tab open.',
+        ),
+      );
+    }
+  }, [loaded, saveAllowed, workbooks]);
+  function clearSavedWork() {
+    if (!window.confirm('Erase both saved practice workbooks and start again?'))
+      return;
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+      setWorkbooks(emptyWorkbooks());
+      setDice(null);
+      setSaveAllowed(true);
+      setSaveBlocked(false);
+      setSaveStatus('Saved work cleared');
+    } catch {
+      setSaveStatus('This browser could not clear its saved workbook.');
+    }
+  }
+  function setSession(next: WorkshopSession) {
+    updateBook((current) => ({
+      ...emptyBook(),
+      draft: current.draft,
+      initial: [next.shares.A, next.shares.C],
+    }));
+  }
   function fresh() {
     if (!engine) return;
+    if (workbooks.active === 'published') return;
+    if (
+      session &&
+      !window.confirm(
+        'Replace this practice workbook with a new one? Its worksheet answers will be erased.',
+      )
+    )
+      return;
     try {
       const next = completePracticeSession(engine, draft);
       setSession(next);
@@ -693,27 +274,83 @@ export default function Workshop() {
     });
     return () => cancelAnimationFrame(frame);
   }, [flow.navigation, flow.focus, flow.phase]);
-  const pair = useMemo(() => pairText.split(',') as Pair, [pairText]);
-  const initialPair = useMemo<Pair>(() => ['A', 'C'], []);
-  useEffect(() => {
-    if (window.location.hash === '#workbench') {
-      dispatchFlow({ type: 'navigate', phase: 'workbench' });
-    }
-  }, []);
   function loadExample() {
     if (!engine) return;
-    if (session?.kind === 'published') {
-      dispatchFlow({ type: 'navigate', phase: 'recover', reveal: true });
+    setError('');
+    if (workbooks.active === 'published') {
+      setWorkbooks((current) => ({ ...current, active: 'fresh' }));
       return;
     }
     try {
-      setSession(publishedSession(engine));
-      dispatchFlow({ type: 'published-example' });
-      setPairText('A,C');
-      setError('');
+      const published = publishedSession(engine);
+      setWorkbooks((current) => ({
+        ...current,
+        active: 'published',
+        books: {
+          ...current.books,
+          published: current.books.published.initial
+            ? current.books.published
+            : {
+                ...emptyBook(),
+                initial: [published.shares.A, published.shares.C],
+                flow: workshopFlow(emptyBook().flow, {
+                  type: 'session-created',
+                }),
+                example: true,
+              },
+        },
+      }));
     } catch {
       setError('The published example could not be verified.');
     }
+  }
+  function renderExercise(
+    id: string,
+    target: 'D' | 'S',
+    onComplete: () => void,
+  ) {
+    if (!engine || !session || !exercises) return null;
+    return (
+      <ManualLesson
+        key={session.shares.A + session.shares.C + id}
+        engine={engine}
+        session={session}
+        exercise={exercises[id]}
+        progress={book.lessons[id] ?? emptyLesson()}
+        example={book.example}
+        active={
+          phase ===
+            (id.startsWith('checksum')
+              ? 'checksum'
+              : id === 'derive'
+                ? 'derive'
+                : 'recover') &&
+          (!id.startsWith('checksum') || id === 'checksum-' + checksumIndex)
+        }
+        target={target}
+        onChange={(progress) =>
+          updateBook((current) => {
+            if (
+              current.example &&
+              progress.answers.length !==
+                (current.lessons[id]?.answers.length ?? 0)
+            )
+              return current;
+            const checksums = { ...current.flow.checksums };
+            if (id === 'checksum-A' || id === 'checksum-C') {
+              checksums[id === 'checksum-A' ? 'A' : 'C'] =
+                progress.answers.length === exercises[id].steps.length;
+            }
+            return {
+              ...current,
+              lessons: { ...current.lessons, [id]: progress },
+              flow: { ...current.flow, checksums },
+            };
+          })
+        }
+        onComplete={onComplete}
+      />
+    );
   }
   function createButton() {
     return (
@@ -747,20 +384,33 @@ export default function Workshop() {
           <div className="workshop-header-actions">
             <button
               className="text-button"
-              disabled={!engine}
+              disabled={!engine || !loaded}
               onClick={loadExample}
             >
-              Load example
+              {workbooks.active === 'published'
+                ? 'Return to my workbook'
+                : 'Use published shares'}
             </button>
             {phase !== 'random' && (
               <button
                 className="secondary-button"
                 onClick={() =>
-                  dispatchFlow({
-                    type: 'navigate',
-                    phase: 'random',
-                    reveal: true,
-                  })
+                  setWorkbooks((current) => ({
+                    ...current,
+                    active: 'fresh',
+                    books: {
+                      ...current.books,
+                      fresh: {
+                        ...current.books.fresh,
+                        example: false,
+                        flow: workshopFlow(current.books.fresh.flow, {
+                          type: 'navigate',
+                          phase: 'random',
+                          reveal: true,
+                        }),
+                      },
+                    },
+                  }))
                 }
               >
                 <Dices size={16} /> Make a new key
@@ -772,7 +422,9 @@ export default function Workshop() {
         <div className="title-row workshop-title">
           <div>
             <p className="eyebrow">THE PAPER COMPUTER, IN YOUR HANDS</p>
-            <BookHeading level={1} text="The volvelle workshop" />
+            <h1 className="codex-title">
+              Codex<span>32</span>
+            </h1>
           </div>
           <a
             className="original-book-link"
@@ -794,7 +446,8 @@ export default function Workshop() {
           <ShieldCheck size={18} />
           <p>
             Disposable test keys only. Never enter a real backup or use these
-            keys for funds. Fresh sessions disappear when you reload.
+            keys for funds. Practice keys and worksheet answers are saved only
+            in this browser.
           </p>
         </div>
         {error && (
@@ -802,7 +455,28 @@ export default function Workshop() {
             {error}
           </p>
         )}
-        {!engine ? (
+        <div className="workbook-tools">
+          <label className="example-switch">
+            <input
+              type="checkbox"
+              checked={book.example}
+              disabled={!session || phase === 'random'}
+              onChange={(event) =>
+                updateBook((current) =>
+                  showExample(current, event.target.checked),
+                )
+              }
+            />
+            Show worked example
+          </label>
+          <output className="save-status">{saveStatus}</output>
+          <button className="text-button" onClick={clearSavedWork}>
+            {saveBlocked
+              ? 'Clear unreadable save and start fresh'
+              : 'Clear saved work'}
+          </button>
+        </div>
+        {!engine || !loaded ? (
           <div className="workshop-loading" aria-live="polite">
             {error
               ? 'Reload the page to load the workshop.'
@@ -811,25 +485,34 @@ export default function Workshop() {
         ) : (
           <Tabs
             value={phase}
-            onValueChange={(value) =>
-              dispatchFlow({ type: 'navigate', phase: value as Phase })
-            }
+            onValueChange={(value) => navigate(value as Phase)}
             id="workshop"
           >
             <TabsList
               className="chapter-tabs workshop-tabs"
               aria-label="Workshop stages"
             >
-              <TabsTrigger value="random">
+              <TabsTrigger
+                value="random"
+                disabled={workbooks.active === 'published'}
+              >
                 <span>I.</span> Make a new key
               </TabsTrigger>
               <TabsTrigger value="checksum" disabled={!session}>
                 <span>II.</span> Checksum
               </TabsTrigger>
-              <TabsTrigger value="derive" disabled={!session}>
+              <TabsTrigger
+                value="derive"
+                disabled={!session || (!book.example && !bothChecksums)}
+              >
                 <span>III.</span> Derive D
               </TabsTrigger>
-              <TabsTrigger value="recover" disabled={!session}>
+              <TabsTrigger
+                value="recover"
+                disabled={
+                  !session || (!book.example && (!bothChecksums || !derived))
+                }
+              >
                 <span>IV.</span> Recover S
               </TabsTrigger>
               <TabsTrigger value="workbench" className="workbench-tab">
@@ -1022,18 +705,23 @@ export default function Workshop() {
                 <output className="stage-announcement">{flow.notice}</output>
               )}
               <div className="stage-toolbar">
-                <p>Make the checksum by following the paper rows.</p>
+                <p>
+                  Fill in every step. Use the example only when you want a hint.
+                </p>
                 <label htmlFor="checksum-share">
                   Initial share
                   <NativeSelect
                     id="checksum-share"
                     value={checksumIndex}
-                    onChange={(e) =>
-                      dispatchFlow({
-                        type: 'select-checksum',
-                        index: e.target.value as 'A' | 'C',
-                      })
-                    }
+                    onChange={(e) => {
+                      const index = e.target.value as 'A' | 'C';
+                      if (book.example)
+                        updateBook((current) => ({
+                          ...current,
+                          exampleChecksumIndex: index,
+                        }));
+                      else dispatchFlow({ type: 'select-checksum', index });
+                    }}
                   >
                     <NativeSelectOption value="A">Share A</NativeSelectOption>
                     <NativeSelectOption value="C">Share C</NativeSelectOption>
@@ -1042,22 +730,10 @@ export default function Workshop() {
               </div>
               {session &&
                 (['A', 'C'] as const).map((index) => (
-                  <div
-                    key={session.shares.A + session.shares.C + index}
-                    hidden={checksumIndex !== index}
-                  >
-                    <ChecksumLesson
-                      engine={engine}
-                      encoded={session.shares[index]}
-                      nextLabel={
-                        flow.checksums.A && flow.checksums.C
-                          ? 'Continue to share D'
-                          : `Continue to checksum ${index === 'A' ? 'C' : 'A'}`
-                      }
-                      onComplete={() =>
-                        dispatchFlow({ type: 'checksum-completed', index })
-                      }
-                    />
+                  <div key={index} hidden={checksumIndex !== index}>
+                    {renderExercise('checksum-' + index, 'S', () =>
+                      dispatchFlow({ type: 'checksum-completed', index }),
+                    )}
                   </div>
                 ))}
             </TabsContent>
@@ -1069,22 +745,10 @@ export default function Workshop() {
                 <p>Use A and C to calculate D. No new randomness is needed.</p>
                 <span className="network-badge">A + C → D</span>
               </div>
-              {session && (
-                <Lesson
-                  key={session.shares.A + session.shares.C + 'derive'}
-                  engine={engine}
-                  session={session}
-                  pair={initialPair}
-                  target="D"
-                  onRestart={() =>
-                    dispatchFlow({ type: 'navigate', phase: 'derive' })
-                  }
-                  onComplete={() => {
-                    setPairText('C,D');
-                    dispatchFlow({ type: 'derivation-completed' });
-                  }}
-                />
-              )}
+              {renderExercise('derive', 'D', () => {
+                setPairText('C,D');
+                dispatchFlow({ type: 'derivation-completed' });
+              })}
             </TabsContent>
             <TabsContent value="recover" data-stage="recover" keepMounted>
               {phase === 'recover' && (
@@ -1101,7 +765,7 @@ export default function Workshop() {
                     value={pairText}
                     onChange={(e) => {
                       setPairText(e.target.value);
-                      dispatchFlow({ type: 'navigate', phase: 'recover' });
+                      navigate('recover');
                     }}
                   >
                     <NativeSelectOption value="A,C">
@@ -1116,20 +780,8 @@ export default function Workshop() {
                   </NativeSelect>
                 </label>
               </div>
-              {session && (
-                <Lesson
-                  key={session.shares.A + session.shares.C + pairText}
-                  engine={engine}
-                  session={session}
-                  pair={pair}
-                  target="S"
-                  onRestart={() =>
-                    dispatchFlow({ type: 'navigate', phase: 'recover' })
-                  }
-                  onComplete={() =>
-                    dispatchFlow({ type: 'recovery-completed' })
-                  }
-                />
+              {renderExercise('recover-' + pairText, 'S', () =>
+                dispatchFlow({ type: 'recovery-completed' }),
               )}
             </TabsContent>
             <TabsContent value="workbench" data-stage="workbench" keepMounted>

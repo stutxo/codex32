@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { publicAsset } from '@/lib/public-asset';
 export const metadata: Metadata = {
-  title: 'The volvelle workshop · Codex32',
+  title: 'Codex32',
   description:
     'Turn the Codex32 paper wheels, follow the worksheets, and make disposable educational test keys.',
 };

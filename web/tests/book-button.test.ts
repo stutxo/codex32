@@ -52,6 +52,7 @@ await test('primary actions render readable enabled and disabled states without 
 await test('every primary workshop and workbench action uses the shared button', async () => {
   for (const path of [
     '../app/workshop/workshop.tsx',
+    '../app/workshop/manual-lesson.tsx',
     '../app/workbench/workbench.tsx',
   ]) {
     const source = ts.createSourceFile(

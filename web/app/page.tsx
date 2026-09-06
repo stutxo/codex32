@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Workshop from './workshop/workshop';
 export const metadata: Metadata = {
-  title: 'The volvelle workshop · Codex32',
+  title: 'Codex32',
   description:
     'Turn the Codex32 paper wheels, follow the original worksheets, and make disposable educational test keys.',
 };
