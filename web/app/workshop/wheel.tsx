@@ -319,14 +319,61 @@ export function WheelControls({
   const answer = wheelAnswer(engine, kind, primary, other, target);
   const aligned =
     !expected || (primary === expected.primary && other === expected.other);
+  const guidedAddition = kind === 'addition' && expected;
+  const nextAction =
+    !expected || aligned
+      ? 'write'
+      : primary !== expected.primary
+        ? 'turn'
+        : 'read';
+  const reading = (
+    <output className="wheel-output" aria-live="polite">
+      <strong className="wheel-reading" aria-hidden="true">
+        {answer ?? '—'}
+      </strong>
+      <span>
+        <b className="reading-label">
+          {aligned ? 'Result · write this character' : 'Current wheel reading'}
+        </b>
+        {answer
+          ? `${primary} ${kind === 'recovery' ? `with ${other}, toward ${target}` : `${kind === 'addition' ? '+' : '×'} ${other}`} = ${answer}${kind === 'recovery' || kind === 'fusion' ? ` (${symbol(answer)})` : ''}`
+          : 'Choose distinct share indices, neither equal to the target.'}
+      </span>
+    </output>
+  );
   return (
-    <div className="wheel-calculator" data-aligned={aligned}>
+    <div
+      className="wheel-calculator"
+      data-aligned={aligned}
+      data-next-action={nextAction}
+    >
+      {guidedAddition && (
+        <p className="wheel-next-instruction" aria-live="polite">
+          {nextAction === 'turn' ? (
+            <>
+              First, point the black arrow at <b>{expected.primary}</b> on the
+              outside rim. It currently points at {primary}.
+            </>
+          ) : nextAction === 'read' ? (
+            <>
+              The arrow is at <b>{expected.primary}</b>. Now find the window
+              labeled <b>{expected.other}</b> on the dragon.
+            </>
+          ) : (
+            <>
+              Read the letter through window <b>{expected.other}</b>, then write
+              it in the answer box below.
+            </>
+          )}
+        </p>
+      )}
       <div className="wheel-controls">
         <label htmlFor={`${id}-primary`}>
           {primaryLabel}
           {expected && (
             <small>
-              1. Set to <b>{expected.primary}</b>
+              {guidedAddition ? '1. Point the arrow at ' : '1. Set to '}
+              <b>{expected.primary}</b>
               {kind === 'translation' ? ' · ' + symbol(expected.primary) : ''}
             </small>
           )}
@@ -346,12 +393,19 @@ export function WheelControls({
                 </NativeSelectOption>
               ))}
           </NativeSelect>
+          {guidedAddition && (
+            <span className="wheel-control-help">
+              Turn the disc, click {expected.primary} on the rim, or choose it
+              here.
+            </span>
+          )}
         </label>
         <label htmlFor={`${id}-other`}>
           {otherLabel}
           {expected && (
             <small>
-              2. Read <b>{expected.other}</b>
+              {guidedAddition ? '2. Find window ' : '2. Read '}
+              <b>{expected.other}</b>
             </small>
           )}
           <NativeSelect
@@ -366,30 +420,31 @@ export function WheelControls({
               </NativeSelectOption>
             ))}
           </NativeSelect>
+          {guidedAddition && (
+            <span className="wheel-control-help">
+              Click the {expected.other} label on the dragon, or choose it here
+              to enlarge that window.
+            </span>
+          )}
         </label>
       </div>
-      {expected && (
+      {expected && !guidedAddition && (
         <p className="wheel-alignment">
           {aligned
             ? 'The wheel is set. Write its result below.'
             : 'Set both characters above to match this column.'}
         </p>
       )}
-      <output className="wheel-output" aria-live="polite">
-        <strong className="wheel-reading" aria-hidden="true">
-          {answer ?? '—'}
-        </strong>
-        <span>
-          <b className="reading-label">
-            {aligned
-              ? 'Result · write this character'
-              : 'Current wheel reading'}
-          </b>
-          {answer
-            ? `${primary} ${kind === 'recovery' ? `with ${other}, toward ${target}` : `${kind === 'addition' ? '+' : '×'} ${other}`} = ${answer}${kind === 'recovery' || kind === 'fusion' ? ` (${symbol(answer)})` : ''}`
-            : 'Choose distinct share indices, neither equal to the target.'}
-        </span>
-      </output>
+      {guidedAddition && !aligned ? (
+        <details className="current-wheel-detail">
+          <summary>
+            See the reading at your current setting ({primary} + {other})
+          </summary>
+          {reading}
+        </details>
+      ) : (
+        reading
+      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   type WorkshopSession,
 } from '@/lib/workshop';
 import {
-  emptyLesson,
+  prepareLesson,
   editLesson,
   normalizeAnswer,
   submitAnswer,
@@ -63,8 +63,12 @@ export default function ManualLesson({
     unknown: boolean;
   } | null>(null);
   const focusPrompt = useRef(false);
+  const givenCount = exercise.steps[0]?.id === 'endpoint' ? 1 : 0;
   const at = example
-    ? Math.min(progress.exampleCursor, exercise.steps.length - 1)
+    ? Math.max(
+        givenCount,
+        Math.min(progress.exampleCursor, exercise.steps.length - 1),
+      )
     : progress.cursor;
   const view = example ? progress.exampleWheel : progress;
   const done = !example && at === exercise.steps.length;
@@ -198,6 +202,7 @@ export default function ManualLesson({
     if (result.complete) onComplete();
   }
   function visit(next: number) {
+    next = Math.max(givenCount, next);
     setError('');
     if (example) patch({ exampleCursor: next, column: 0 });
     else onChange(visitLesson(exercise, { ...progress, column: 0 }, next));
@@ -238,6 +243,21 @@ export default function ManualLesson({
               <span>{guide.phase}</span>
               {guide.position && <span>{guide.position}</span>}
             </div>
+            {step.id === 'prefill' && !exercise.verification && (
+              <aside className="checksum-givens">
+                <strong>The book’s fixed rows are already filled in.</strong>
+                <p>
+                  <code>SECRETSHARE32</code> is the fixed target: a valid
+                  share’s checksum calculation ends at this row. We use it at
+                  the bottom of the worksheet to solve upward later. It is not
+                  your secret or your share’s checksum.
+                </p>
+                <p>
+                  Start here by adding the beginning of your share to the book’s
+                  printed starting row, <code>33XW87RR3YLJG</code>.
+                </p>
+              </aside>
+            )}
             <div className="manual-instruction">
               <h2>
                 {startUpward
@@ -427,7 +447,10 @@ export default function ManualLesson({
           <span className="entry-count">
             {done
               ? 'All entries checked'
-              : 'Entry ' + (at + 1) + ' of ' + exercise.steps.length}
+              : 'Entry ' +
+                (at + 1 - givenCount) +
+                ' of ' +
+                (exercise.steps.length - givenCount)}
           </span>
         </div>
         {done ? (
@@ -525,7 +548,11 @@ export default function ManualLesson({
                     ))}
                   </div>
                 </div>
-                <div className="column-instruction">
+                <div
+                  className={
+                    'column-instruction' + (guided ? ' has-columns' : '')
+                  }
+                >
                   {guided && (
                     <button
                       type="button"
@@ -734,7 +761,7 @@ export default function ManualLesson({
             <div className="checksum-actions">
               <button
                 className="secondary-button"
-                disabled={at === 0}
+                disabled={at === givenCount}
                 onClick={() => visit(at - 1)}
               >
                 <ArrowLeft size={15} /> Back
@@ -760,11 +787,12 @@ export default function ManualLesson({
         )}
         <div className="manual-progress" aria-label="Checked workbook progress">
           <span>
-            {progress.answers.length} / {exercise.steps.length} steps checked
+            {progress.answers.length - givenCount} /{' '}
+            {exercise.steps.length - givenCount} steps checked
           </span>
           <progress
-            max={exercise.steps.length}
-            value={progress.answers.length}
+            max={exercise.steps.length - givenCount}
+            value={progress.answers.length - givenCount}
           />
         </div>
         {completedCells.length > 0 && (
@@ -794,7 +822,7 @@ export default function ManualLesson({
             </div>
           </div>
         )}
-        {!example && progress.answers.length > 0 && (
+        {!example && progress.answers.length > givenCount && (
           <button
             className="text-button restart-lesson"
             onClick={() => {
@@ -804,7 +832,7 @@ export default function ManualLesson({
                 )
               ) {
                 setError('');
-                onChange(emptyLesson());
+                onChange(prepareLesson(exercise));
               }
             }}
           >

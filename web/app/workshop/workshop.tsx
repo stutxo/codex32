@@ -54,6 +54,7 @@ import {
   shareExercise,
   emptyBook,
   emptyLesson,
+  prepareLesson,
   emptyWorkbooks,
   readWorkbooks,
   saveWorkbooks,
@@ -97,6 +98,7 @@ export default function Workshop() {
   }
   const [error, setError] = useState('');
   const [diceError, setDiceError] = useState('');
+  const [makingAnother, setMakingAnother] = useState(false);
   function updateBook(change: (current: Book) => Book) {
     setWorkbooks((current) => ({
       ...current,
@@ -116,6 +118,7 @@ export default function Workshop() {
     }));
   }
   function navigate(next: Phase) {
+    setMakingAnother(false);
     if (next === 'random')
       updateBook((current) => ({
         ...current,
@@ -258,6 +261,7 @@ export default function Workshop() {
       setDraft('');
       setDice(null);
       setError('');
+      setMakingAnother(false);
     } catch {
       setError(
         'The test backup could not be created or verified. Your rolled characters and previous session are unchanged. Please try again.',
@@ -313,6 +317,7 @@ export default function Workshop() {
   function loadExample() {
     if (!engine) return;
     setError('');
+    setMakingAnother(false);
     if (workbooks.active === 'published') {
       setWorkbooks((current) => ({ ...current, active: 'fresh' }));
       return;
@@ -352,7 +357,10 @@ export default function Workshop() {
         engine={engine}
         session={session}
         exercise={exercises[id]}
-        progress={book.lessons[id] ?? emptyLesson()}
+        progress={prepareLesson(
+          exercises[id],
+          book.lessons[id] ?? emptyLesson(),
+        )}
         example={book.example}
         active={
           phase ===
@@ -372,7 +380,7 @@ export default function Workshop() {
             if (
               current.example &&
               progress.answers.length !==
-                (current.lessons[id]?.answers.length ?? 0)
+                prepareLesson(exercises[id], current.lessons[id]).answers.length
             )
               return current;
             const checksums = { ...current.flow.checksums };
@@ -441,7 +449,8 @@ export default function Workshop() {
             {phase !== 'random' && (
               <button
                 className="secondary-button"
-                onClick={() =>
+                onClick={() => {
+                  setMakingAnother(false);
                   setWorkbooks((current) => ({
                     ...current,
                     active: 'fresh',
@@ -457,8 +466,8 @@ export default function Workshop() {
                         }),
                       },
                     },
-                  }))
-                }
+                  }));
+                }}
               >
                 <Dices size={16} /> Make a new key
               </button>
@@ -558,182 +567,247 @@ export default function Workshop() {
               {phase === 'random' && (
                 <output className="stage-announcement">{flow.notice}</output>
               )}
-              <div className="random-spread">
-                <section className="worksheet-page">
+              {session && !makingAnother ? (
+                <section className="worksheet-page saved-key-page">
                   <div className="running-head">
-                    <span>FRESH INITIAL SHARES</span>
-                    <span>NO REAL FUNDS</span>
+                    <span>YOUR CURRENT WORKBOOK</span>
+                    <span>SAVED IN THIS BROWSER</span>
                   </div>
-                  <BookHeading text="Fresh initial shares." />
+                  <BookHeading text="The shares you created." />
                   <p className="serif-copy">
-                    Two independent strings become initial shares A and C. Each
-                    needs 26 random characters. The two shares together define a
-                    fresh 128-bit test seed.
-                  </p>
-                  <p className="serif-copy">
-                    This exercise uses the name <b>PLAY</b> and three shares, A,
-                    C and D. Any two recover the seed (k = 2). We follow the
-                    book’s translation worksheet method.
+                    These are the 26 random characters you created for each
+                    share. They still define the same test key. Your checksum
+                    entries and wheel settings are kept when you change tabs.
                   </p>
                   <div className="random-share-drafts">
-                    {['A', 'C'].map((label, row) => (
-                      <div key={label}>
+                    {(['A', 'C'] as const).map((index) => (
+                      <div key={index}>
                         <div>
-                          <strong>Share {label}</strong>
-                          <span>
-                            {Math.min(26, Math.max(0, draft.length - row * 26))}{' '}
-                            / 26 characters
-                          </span>
+                          <strong>Share {index}</strong>
+                          <span>26 / 26 characters</span>
                         </div>
                         <code>
-                          {Array.from(
-                            { length: 26 },
-                            (_, i) => draft[row * 26 + i] ?? '·',
-                          ).join(' ')}
+                          {session.shares[index]
+                            .slice(9, 35)
+                            .split('')
+                            .join(' ')}
                         </code>
                       </div>
                     ))}
                   </div>
-                  <Progress value={(draft.length / 52) * 100}>
-                    <ProgressLabel>Random characters</ProgressLabel>
-                    <ProgressValue>
-                      {() => `${draft.length} / 52`}
-                    </ProgressValue>
-                  </Progress>
-                  <div className="random-actions">
-                    <button
-                      className="secondary-button"
-                      data-roll-dice
-                      disabled={
-                        draft.length >= 52 ||
-                        Boolean(dice && !book.diceEntry.recorded)
+                  <div className="saved-key-actions">
+                    <BookButton
+                      onClick={() =>
+                        updateBook((current) => ({
+                          ...current,
+                          example: false,
+                          flow: normalizeWorkshopFlow(
+                            workshopFlow(current.flow, {
+                              type: 'navigate',
+                              phase: 'recover',
+                              reveal: true,
+                            }),
+                            derived,
+                          ),
+                        }))
                       }
-                      onClick={roll}
                     >
-                      <Dices size={17} /> Roll five pairs
-                    </button>
+                      Continue this workbook <ArrowRight size={17} />
+                    </BookButton>
                     <button
                       className="text-button"
-                      disabled={draft.length >= 52}
-                      onClick={fill}
+                      onClick={() => setMakingAnother(true)}
                     >
-                      Fill remaining characters <WandSparkles size={15} />
+                      Make another test key
                     </button>
                   </div>
-
-                  <div className="create-backup-inline">
-                    {createButton()}
-                    <p className="worksheet-caption">
-                      Complete all 52 characters first. “Fill remaining” is an
-                      optional shortcut.
-                    </p>
-                  </div>
-                  <button
-                    className="text-button"
-                    disabled={!draft}
-                    onClick={() => {
-                      setDraft('');
-                      setDice(null);
-                    }}
-                  >
-                    Clear these characters
-                  </button>
-                  <p className="worksheet-caption">
-                    Randomness comes from your browser’s cryptographic random
-                    source. This educational page displays the material openly
-                    and is not a key vault.
-                  </p>
                 </section>
-                <section className="dice-page">
-                  <div className="running-head">
-                    <span>THE DICE EXERCISE</span>
-                    <span>5 BITS → 1 CHARACTER</span>
-                  </div>
-                  <div className="dice-illumination">
-                    <Image
-                      unoptimized
-                      src={publicAsset('/art/cover-wizard.png')}
-                      width="124"
-                      height="187"
-                      alt="The wizard from the original Codex32 cover"
-                    />
-                    <div>
-                      <h2>Roll. Compare. Read.</h2>
+              ) : (
+                <>
+                  {session && (
+                    <div className="new-key-draft-notice">
+                      <p>
+                        Your current workbook is kept until you create its
+                        replacement.
+                      </p>
+                      <button
+                        className="text-button"
+                        onClick={() => setMakingAnother(false)}
+                      >
+                        Return to the current key
+                      </button>
                     </div>
-                  </div>
-                  <p>
-                    Each set of five pairs makes one of the 52 characters. A
-                    higher second roll gives 1; a lower second roll gives 0.
-                    Ties are rolled again.
-                  </p>
-                  <DiceWorksheet
-                    dice={dice}
-                    entry={book.diceEntry}
-                    error={diceError}
-                    onChange={(diceEntry) => {
-                      setDiceError('');
-                      updateBook((current) => ({ ...current, diceEntry }));
-                    }}
-                    onRecord={() => {
-                      if (!dice) return;
-                      const next = recordDiceCharacter(
-                        draft,
-                        dice,
-                        book.diceEntry,
-                      );
-                      if (next === null) {
-                        setDiceError(
-                          'Check all five comparisons, then follow those branches to the character at the end of the tree.',
-                        );
-                        return;
-                      }
-                      updateBook((current) => ({
-                        ...current,
-                        draft: next,
-                        diceEntry: { ...current.diceEntry, recorded: true },
-                      }));
-                      setDiceError('');
-                      requestAnimationFrame(() => {
-                        const button =
-                          workshopElement.current?.querySelector<HTMLButtonElement>(
-                            next.length === 52
-                              ? '.create-backup-button'
-                              : '[data-roll-dice]',
+                  )}
+                  <div className="random-spread">
+                    <section className="worksheet-page">
+                      <div className="running-head">
+                        <span>FRESH INITIAL SHARES</span>
+                        <span>NO REAL FUNDS</span>
+                      </div>
+                      <BookHeading text="Fresh initial shares." />
+                      <p className="serif-copy">
+                        Two independent strings become initial shares A and C.
+                        Each needs 26 random characters. The two shares together
+                        define a fresh 128-bit test seed.
+                      </p>
+                      <p className="serif-copy">
+                        This exercise uses the name <b>PLAY</b> and three
+                        shares, A, C and D. Any two recover the seed (k = 2). We
+                        follow the book’s translation worksheet method.
+                      </p>
+                      <div className="random-share-drafts">
+                        {['A', 'C'].map((label, row) => (
+                          <div key={label}>
+                            <div>
+                              <strong>Share {label}</strong>
+                              <span>
+                                {Math.min(
+                                  26,
+                                  Math.max(0, draft.length - row * 26),
+                                )}{' '}
+                                / 26 characters
+                              </span>
+                            </div>
+                            <code>
+                              {Array.from(
+                                { length: 26 },
+                                (_, i) => draft[row * 26 + i] ?? '·',
+                              ).join(' ')}
+                            </code>
+                          </div>
+                        ))}
+                      </div>
+                      <Progress value={(draft.length / 52) * 100}>
+                        <ProgressLabel>Random characters</ProgressLabel>
+                        <ProgressValue>
+                          {() => `${draft.length} / 52`}
+                        </ProgressValue>
+                      </Progress>
+                      <div className="random-actions">
+                        <button
+                          className="secondary-button"
+                          data-roll-dice
+                          disabled={
+                            draft.length >= 52 ||
+                            Boolean(dice && !book.diceEntry.recorded)
+                          }
+                          onClick={roll}
+                        >
+                          <Dices size={17} /> Roll five pairs
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={draft.length >= 52}
+                          onClick={fill}
+                        >
+                          Fill remaining characters <WandSparkles size={15} />
+                        </button>
+                      </div>
+
+                      <div className="create-backup-inline">
+                        {createButton()}
+                        <p className="worksheet-caption">
+                          Complete all 52 characters first. “Fill remaining” is
+                          an optional shortcut.
+                        </p>
+                      </div>
+                      <button
+                        className="text-button"
+                        disabled={!draft}
+                        onClick={() => {
+                          setDraft('');
+                          setDice(null);
+                        }}
+                      >
+                        Clear these characters
+                      </button>
+                      <p className="worksheet-caption">
+                        Randomness comes from your browser’s cryptographic
+                        random source. This educational page displays the
+                        material openly and is not a key vault.
+                      </p>
+                    </section>
+                    <section className="dice-page">
+                      <div className="running-head">
+                        <span>THE DICE EXERCISE</span>
+                        <span>5 BITS → 1 CHARACTER</span>
+                      </div>
+                      <div className="dice-illumination">
+                        <Image
+                          unoptimized
+                          src={publicAsset('/art/cover-wizard.png')}
+                          width="124"
+                          height="187"
+                          alt="The wizard from the original Codex32 cover"
+                        />
+                        <div>
+                          <h2>Roll. Compare. Read.</h2>
+                        </div>
+                      </div>
+                      <p>
+                        Each set of five pairs makes one of the 52 characters. A
+                        higher second roll gives 1; a lower second roll gives 0.
+                        Ties are rolled again.
+                      </p>
+                      <DiceWorksheet
+                        dice={dice}
+                        entry={book.diceEntry}
+                        error={diceError}
+                        onChange={(diceEntry) => {
+                          setDiceError('');
+                          updateBook((current) => ({ ...current, diceEntry }));
+                        }}
+                        onRecord={() => {
+                          if (!dice) return;
+                          const next = recordDiceCharacter(
+                            draft,
+                            dice,
+                            book.diceEntry,
                           );
-                        button?.focus({ preventScroll: true });
-                        button?.scrollIntoView({ block: 'center' });
-                      });
-                    }}
-                  />
-                  <details className="technical-note">
-                    <summary>
-                      How does this relate to the paper exercise?
-                    </summary>
-                    <p>
-                      The book uses comparisons between two rolls to remove
-                      bias. Here virtual dice use browser randomness, equal
-                      pairs are retried. You compare the rolls and follow the
-                      original tree to record a character.
-                    </p>
-                    <p>
-                      “Fill remaining” samples uniform characters directly.
-                      Turning a volvelle performs calculations; it does not
-                      supply randomness.
-                    </p>
-                  </details>
-                </section>
-              </div>
-              <div className="random-continue" data-ready={draft.length === 52}>
-                <div aria-live="polite">
-                  <strong>{draft.length} of 52 characters ready</strong>
-                  <p>
-                    {draft.length < 52
-                      ? `Record ${52 - draft.length} more characters, or choose “Fill remaining characters”.`
-                      : 'Both initial shares are ready. Next: calculate their checksums.'}
-                  </p>
-                </div>
-                {createButton()}
-              </div>
+                          if (next === null) {
+                            setDiceError(
+                              'Check all five comparisons, then follow those branches to the character at the end of the tree.',
+                            );
+                            return;
+                          }
+                          updateBook((current) => ({
+                            ...current,
+                            draft: next,
+                            diceEntry: { ...current.diceEntry, recorded: true },
+                          }));
+                          setDiceError('');
+                          requestAnimationFrame(() => {
+                            const button =
+                              workshopElement.current?.querySelector<HTMLButtonElement>(
+                                next.length === 52
+                                  ? '.create-backup-button'
+                                  : '[data-roll-dice]',
+                              );
+                            button?.focus({ preventScroll: true });
+                            button?.scrollIntoView({ block: 'center' });
+                          });
+                        }}
+                      />
+                      <details className="technical-note">
+                        <summary>
+                          How does this relate to the paper exercise?
+                        </summary>
+                        <p>
+                          The book uses comparisons between two rolls to remove
+                          bias. Here virtual dice use browser randomness, equal
+                          pairs are retried. You compare the rolls and follow
+                          the original tree to record a character.
+                        </p>
+                        <p>
+                          “Fill remaining” samples uniform characters directly.
+                          Turning a volvelle performs calculations; it does not
+                          supply randomness.
+                        </p>
+                      </details>
+                    </section>
+                  </div>
+                </>
+              )}
             </TabsContent>
             <TabsContent value="checksum" data-stage="checksum" keepMounted>
               {phase === 'checksum' && (

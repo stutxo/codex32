@@ -14,6 +14,7 @@ import {
   editLesson,
   emptyBook,
   emptyLesson,
+  prepareLesson,
   emptyWorkbooks,
   readWorkbooks,
   restoreWorkbooks,
@@ -107,6 +108,42 @@ await test('manual checks reject missing, partial, wrong and skipped entries wit
     };
     assert.equal(submitAnswer(exercise, forged).correct, false);
   }
+});
+
+await test('checksum generation supplies only the book’s fixed row and starts at the first calculation', () => {
+  const prepared = prepareLesson(a);
+  assert.deepEqual(prepared.answers, ['SECRETSHARE32']);
+  assert.equal(prepared.cursor, 1);
+  assert.equal(a.steps[prepared.cursor].id, 'prefill');
+  assert.equal(prepared.draft, '');
+  assert.equal(submitAnswer(a, prepared).correct, false);
+  assert.equal(prepareLesson(a, prepared), prepared);
+  const verify = checksumExercise(engine, fresh.shares.A, true);
+  assert.deepEqual(prepareLesson(verify), emptyLesson());
+  assert.equal(verify.steps[0].id, 'verify-copy');
+  assert.deepEqual(prepareLesson(derive), emptyLesson());
+});
+
+await test('supplying the fixed row keeps existing calculations, unfinished drafts, review and example settings', () => {
+  const current = {
+    ...solve(a, 4),
+    draft: 'WRONG DRAFT',
+    column: 5,
+    primary: '3',
+    other: 'D',
+    exampleCursor: 7,
+  };
+  assert.equal(prepareLesson(a, current), current);
+  const reviewingGiven = { ...current, cursor: 0 };
+  assert.deepEqual(prepareLesson(a, reviewingGiven), { ...current, cursor: 1 });
+  const saved = emptyWorkbooks();
+  saved.books.fresh.initial = [fresh.shares.A, fresh.shares.C];
+  saved.books.fresh.lessons['checksum-A'] = reviewingGiven;
+  const restored = restoreWorkbooks(engine, JSON.stringify(saved)).books.fresh;
+  assert.deepEqual(restored.lessons['checksum-A'], { ...current, cursor: 1 });
+  assert.deepEqual(restored.lessons['checksum-C'].answers, ['SECRETSHARE32']);
+  assert.equal(restored.lessons['checksum-C'].cursor, 1);
+  assert.deepEqual(restored.flow.checksums, { A: false, C: false });
 });
 
 await test('the hands-on checksum includes table lookup, shifting, addition and upward copying for both shares', () => {

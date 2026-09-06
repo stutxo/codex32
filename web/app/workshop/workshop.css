@@ -967,31 +967,6 @@
   }
 }
 
-.random-continue {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 16px 22px;
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--primary);
-  box-shadow: 0 -4px 15px #30284718;
-}
-.random-continue strong {
-  font-size: 1rem;
-  color: var(--primary);
-}
-.random-continue p {
-  font-size: 0.875rem;
-  margin-top: 3px;
-}
-.random-continue .primary-button {
-  flex-shrink: 0;
-}
 .workshop-shell .create-backup-button {
   min-height: 52px;
   font-size: 1rem;
@@ -1030,17 +1005,6 @@
   }
   .workshop-tabs .workbench-tab {
     grid-column: 1 / -1;
-  }
-  .random-continue {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
-  }
-}
-@media print {
-  .random-continue {
-    display: none;
   }
 }
 
@@ -1414,6 +1378,64 @@
 .lesson-intro .manual-instruction p {
   max-width: 78ch;
 }
+.checksum-givens {
+  max-width: 78ch;
+  margin-top: 18px;
+  padding: 16px 20px;
+  border-left: 3px solid var(--primary);
+  background: #eee8d7;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.checksum-givens p {
+  margin-top: 10px;
+}
+.checksum-givens code {
+  font-family: 'Courier New', monospace;
+  overflow-wrap: anywhere;
+}
+.saved-key-page {
+  border: 1px solid var(--border);
+  background: var(--paper);
+}
+.saved-key-page .serif-copy {
+  max-width: 70ch;
+}
+.saved-key-page .random-share-drafts {
+  max-width: 950px;
+}
+.saved-key-actions,
+.new-key-draft-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-block: 24px;
+}
+.wheel-next-instruction {
+  padding: 16px;
+  border-left: 3px solid var(--primary);
+  background: #eee8d7;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 12px 0 18px;
+}
+.wheel-control-help {
+  display: block;
+  margin-top: 10px;
+  font-weight: 400;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.current-wheel-detail {
+  margin-top: 18px;
+  font-size: 0.9375rem;
+}
+.current-wheel-detail summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
 .lesson-next-action {
   margin-top: 18px;
 }
@@ -1755,6 +1777,20 @@
 .column-instruction strong {
   flex: 1;
 }
+.column-instruction.has-columns {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+}
+.column-instruction.has-columns strong {
+  text-align: center;
+}
+.column-instruction.has-columns .column-arrow {
+  width: 44px;
+}
+.column-instruction.has-columns > span {
+  grid-column: 1 / -1;
+}
 .column-instruction > span {
   flex-basis: 100%;
   order: 1;
@@ -1922,10 +1958,6 @@
   border: 1px solid var(--border);
   background: #fffdf5;
   overflow: hidden;
-}
-
-.random-continue[data-ready='false'] {
-  position: static;
 }
 
 .manual-dice .dice-track {

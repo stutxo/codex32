@@ -282,6 +282,24 @@ export const emptyLesson = (): LessonProgress => ({
   exampleCursor: 0,
   exampleWheel: emptyWheel(),
 });
+
+// Keep the legacy endpoint slot so saved calculation indices remain stable.
+// It is a supplied row, not a learner answer or an entry shown in the UI.
+export function prepareLesson(
+  exercise: Exercise,
+  progress: LessonProgress = emptyLesson(),
+): LessonProgress {
+  if (exercise.steps[0]?.id !== 'endpoint') return progress;
+  const prepared =
+    progress.answers.length === 0
+      ? submitAnswer(exercise, {
+          ...progress,
+          cursor: 0,
+          draft: 'SECRETSHARE32',
+        }).progress
+      : progress;
+  return prepared.cursor === 0 ? { ...prepared, cursor: 1 } : prepared;
+}
 export function editLesson(
   progress: LessonProgress,
   change: Partial<LessonProgress>,
@@ -749,9 +767,13 @@ export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
       }
       book.initial = [session.shares.A, session.shares.C];
       for (const [id, exercise] of Object.entries(exercises)) {
-        book.lessons[id] = (
-          raw.version === 1 ? migrateLegacyLesson : restoreLesson
-        )(exercise, object(saved.lessons)[id]);
+        book.lessons[id] = prepareLesson(
+          exercise,
+          (raw.version === 1 ? migrateLegacyLesson : restoreLesson)(
+            exercise,
+            object(saved.lessons)[id],
+          ),
+        );
       }
       for (const index of ['A', 'C'] as const) {
         const id = 'checksum-' + index;
