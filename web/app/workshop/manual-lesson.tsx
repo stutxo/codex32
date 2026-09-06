@@ -17,7 +17,14 @@ import {
   type Exercise,
   type LessonProgress,
 } from '@/lib/workbook';
-import Wheel, { type WheelKind } from './wheel';
+import Wheel, { WheelControls, type WheelKind } from './wheel';
+import PaperReference, { ShareHeader } from './paper-reference';
+import {
+  checkColumn,
+  columnEntry,
+  writeColumn,
+  stepGuide,
+} from '@/lib/workbook-guide';
 
 export default function ManualLesson({
   engine,
@@ -61,10 +68,13 @@ export default function ManualLesson({
   const computational = ['addition', 'translation', 'recovery'].includes(
     step.kind,
   );
+  const guided = step.kind === 'addition' && step.answer.length > 1;
+  const guide = stepGuide(step, Boolean(exercise.checksum), target);
   const left = step.left?.[column];
   const right = step.right?.[column];
+  const unknown = left === '?' || right === '?';
   const given = reviewing ? progress.answers[at] : progress.draft;
-  const value = example ? step.answer : given;
+  const value = guided && !reviewing ? columnEntry(given, column) : given;
   const tableRow =
     wheelData.checksumTable[alphabet.indexOf(view.tableFirst)][
       alphabet.indexOf(view.tableSecond)
@@ -76,11 +86,30 @@ export default function ManualLesson({
     if (active && !example && !done && !reviewing) {
       field.current?.focus({ preventScroll: true });
     }
-  }, [at, active, example, done, reviewing]);
-  function check() {
+  }, [at, column, active, example, done, reviewing]);
+  function check(wholeRow = false) {
     if (example || reviewing) return;
-    const result = submitAnswer(exercise, progress);
+    const result =
+      guided && !wholeRow
+        ? checkColumn(exercise, { ...progress, column })
+        : submitAnswer(exercise, progress);
     if (!result.correct) {
+      if (guided && !wholeRow) {
+        setError(
+          normalizeAnswer(progress.draft).length > step.answer.length
+            ? 'Your row has extra characters. Open “Edit or paste the whole row” below to remove them.'
+            : unknown
+              ? 'This column is still unknown. Write ? to keep its place.'
+              : 'Check column ' +
+                (column + 1) +
+                ': set the top character to ' +
+                left +
+                ', read the window at ' +
+                right +
+                ', then write its result.',
+        );
+        return;
+      }
       const entered = normalizeAnswer(progress.draft);
       if (entered.length !== step.answer.length) {
         setError(
@@ -125,49 +154,80 @@ export default function ManualLesson({
           : [],
       );
   return (
-    <div className="workshop-spread manual-spread">
-      <section className="instrument-page magic-instrument">
-        <div className="instrument-caption">
-          <span className="small-label">{exercise.title}</span>
-          <span>{example ? 'WORKED EXAMPLE' : 'YOUR PAPER COMPUTER'}</span>
+    <div
+      className="workshop-spread manual-spread guided-spread"
+      data-paper-task={step.kind}
+    >
+      <header className="lesson-intro">
+        <div className="running-head">
+          <span>
+            {exercise.title} · {example ? 'WORKED EXAMPLE' : 'YOUR WORKBOOK'}
+          </span>
+          <a
+            href={wheelData.sources.paper + '#page=' + guide.page}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Book p. {guide.printedPage} ↗
+          </a>
         </div>
-        <Wheel
-          engine={engine}
-          kind={kind}
-          primary={view.primary}
-          other={view.other}
-          target={target}
-          onPrimary={(primary) => patch({ primary })}
-          onOther={(other) => patch({ other })}
-        />
-        {!done && computational && (
-          <div className="wheel-task">
-            <strong>
-              {step.answer.length > 1 ? 'Column ' + (column + 1) + ': ' : ''}
-              {left === '?' || right === '?'
-                ? 'This character is still unknown. Write ?.'
-                : step.kind === 'recovery'
-                  ? 'Handle at ' + left + ' · read ' + right
-                  : step.kind === 'translation'
-                    ? 'Factor ' +
-                      symbol(left ?? 'Q') +
-                      ' (' +
-                      left +
-                      ') · read ' +
-                      right
-                    : left + ' + ' + right}
-            </strong>
+        {!done && (
+          <>
+            <div className="lesson-route">
+              <span>{guide.phase}</span>
+              {guide.position && <span>{guide.position}</span>}
+            </div>
+            <div className="manual-instruction">
+              <h2>{step.title}</h2>
+              <p>{step.instruction}</p>
+            </div>
+            {exercise.checksum && ['endpoint', 'prefill'].includes(step.id) && (
+              <ShareHeader exercise={exercise} />
+            )}
+          </>
+        )}
+      </header>
+      <section className="instrument-page magic-instrument">
+        {computational && !done ? (
+          <>
+            <div className="instrument-caption">
+              <span className="small-label">
+                {guided ? 'COLUMN ' + (column + 1) + ' OF 13' : exercise.title}
+              </span>
+              <span>
+                {unknown ? 'KEEP THE UNKNOWN CELL' : 'TURN · READ · WRITE'}
+              </span>
+            </div>
+            <Wheel
+              engine={engine}
+              kind={kind}
+              primary={view.primary}
+              other={view.other}
+              target={target}
+              onPrimary={(primary) => patch({ primary })}
+              onOther={(other) => patch({ other })}
+              controls={false}
+            />
+          </>
+        ) : !done ? (
+          <PaperReference step={step} />
+        ) : (
+          <div className="paper-reference">
+            <h3>Your worksheet is complete.</h3>
             <p>
-              Turn the disc or use its two selectors. Copy the reading into your
-              workbook.
+              You can review every entry using the controls on the facing page.
             </p>
-            {example && left && right && left !== '?' && right !== '?' && (
-              <button
-                className="secondary-button"
-                onClick={() => patch({ primary: left, other: right })}
-              >
-                Show this setting
-              </button>
+            {exercise.checksum && (
+              <p>
+                The book also asks you to verify a separate copy of your share.{' '}
+                <a
+                  href={wheelData.sources.paper + '#page=21'}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Read the verification instructions on p. 14 ↗
+                </a>
+              </p>
             )}
           </div>
         )}
@@ -179,7 +239,7 @@ export default function ManualLesson({
             </p>
             <div className="table-pickers">
               <label>
-                First character
+                Table row · first character
                 <select
                   value={view.tableFirst}
                   onChange={(event) =>
@@ -192,7 +252,7 @@ export default function ManualLesson({
                 </select>
               </label>
               <label>
-                Second character
+                Table column · second character
                 <select
                   value={view.tableSecond}
                   onChange={(event) =>
@@ -213,7 +273,9 @@ export default function ManualLesson({
             </div>
             {view.tableOpen && (
               <output aria-live="polite">
-                <span>{view.tableFirst + view.tableSecond}</span>
+                <span>
+                  Selected entry: {view.tableFirst + view.tableSecond}
+                </span>
                 <code>{tableRow}</code>
               </output>
             )}
@@ -223,14 +285,14 @@ export default function ManualLesson({
       <section className="worksheet-page manual-worksheet">
         <div className="running-head">
           <span>
-            {example ? 'EXAMPLE · YOUR WORK IS KEPT' : 'YOUR WORKBOOK'}
+            {example
+              ? 'EXAMPLE · YOUR WORK IS KEPT'
+              : 'WRITE ON YOUR WORKSHEET'}
           </span>
-          <span>
-            {step.direction === 'up'
-              ? 'SOLVE UPWARD'
-              : step.direction === 'down'
-                ? 'WORK DOWNWARD'
-                : exercise.title}
+          <span className="entry-count">
+            {done
+              ? 'All entries checked'
+              : 'Entry ' + (at + 1) + ' of ' + exercise.steps.length}
           </span>
         </div>
         {done ? (
@@ -277,57 +339,151 @@ export default function ManualLesson({
           </div>
         ) : (
           <>
-            <div className="manual-instruction">
-              <span className="small-label">
-                STEP {at + 1} OF {exercise.steps.length}
-              </span>
-              <h2>{step.title}</h2>
-              <p>{step.instruction}</p>
-            </div>
-            {step.left && (
-              <div className="manual-givens">
-                <span>
-                  {step.kind === 'recovery'
-                    ? 'Share / other share'
-                    : step.kind === 'translation'
-                      ? 'Factor / character'
-                      : 'Working row'}
-                </span>
-                <div
-                  className="operand-cells"
-                  style={
-                    { '--cell-count': step.left.length } as React.CSSProperties
-                  }
-                >
-                  {step.left.split('').map((character, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      aria-label={'Use column ' + (i + 1)}
-                      aria-pressed={column === i}
-                      onClick={() => patch({ column: i })}
-                    >
-                      <span>{character}</span>
-                      {step.right && <span>{step.right[i]}</span>}
-                    </button>
-                  ))}
-                </div>
-                {step.right && (
+            {computational && step.left && (
+              <>
+                <div className="manual-givens">
                   <span>
-                    {step.kind === 'addition'
-                      ? '+ Table / prefill / translated row'
-                      : 'Use the matching wheel above'}
+                    <b>Top:</b> {guide.top}
                   </span>
-                )}
-                {step.following && (
-                  <p>
-                    {step.direction === 'up'
-                      ? 'Saved lookup characters: '
-                      : 'Incoming characters: '}
-                    <code>{step.following}</code>
+                  <span>
+                    <b>Bottom:</b> {guide.bottom}
+                  </span>
+                  <div
+                    className="operand-cells"
+                    style={
+                      {
+                        '--cell-count': step.left.length,
+                      } as React.CSSProperties
+                    }
+                  >
+                    {step.left.split('').map((character, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-label={'Use column ' + (i + 1)}
+                        aria-pressed={column === i}
+                        onClick={() => {
+                          setError('');
+                          patch({ column: i });
+                        }}
+                      >
+                        <small>{i + 1}</small>
+                        <span
+                          className={character === '?' ? 'unknown-operand' : ''}
+                        >
+                          {character}
+                        </span>
+                        {step.right && (
+                          <span
+                            className={
+                              step.right[i] === '?' ? 'unknown-operand' : ''
+                            }
+                          >
+                            {step.right[i]}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="column-instruction">
+                  {guided && (
+                    <button
+                      type="button"
+                      className="secondary-button column-arrow"
+                      aria-label="Previous column"
+                      disabled={column === 0}
+                      onClick={() => {
+                        setError('');
+                        patch({ column: column - 1 });
+                      }}
+                    >
+                      <ArrowLeft size={17} />
+                    </button>
+                  )}
+                  <strong>
+                    {guided
+                      ? 'Column ' + (column + 1) + ' of 13'
+                      : 'Set the wheel'}
+                  </strong>
+                  <span>
+                    {unknown
+                      ? 'An unknown cell stays ? for now.'
+                      : kind === 'addition'
+                        ? 'Top ' + left + ' + bottom ' + right
+                        : kind === 'translation'
+                          ? 'Factor ' +
+                            symbol(left!) +
+                            ' (' +
+                            left +
+                            ') · character ' +
+                            right
+                          : 'Handle at ' + left + ' · read ' + right}
+                  </span>
+                  {guided && (
+                    <button
+                      type="button"
+                      className="secondary-button column-arrow"
+                      aria-label="Next column"
+                      disabled={column === 12}
+                      onClick={() => {
+                        setError('');
+                        patch({ column: column + 1 });
+                      }}
+                    >
+                      <ArrowRight size={17} />
+                    </button>
+                  )}
+                </div>
+                {unknown ? (
+                  <p className="unknown-guide">
+                    The book marks unknown characters in pink. Write <b>?</b> in
+                    this cell; you will solve it on the upward pass.
                   </p>
+                ) : (
+                  <WheelControls
+                    engine={engine}
+                    kind={kind}
+                    primary={view.primary}
+                    other={view.other}
+                    target={target}
+                    onPrimary={(primary) => patch({ primary })}
+                    onOther={(other) => patch({ other })}
+                    expected={{ primary: left!, other: right! }}
+                  />
                 )}
-              </div>
+                {example && !unknown && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => patch({ primary: left!, other: right! })}
+                  >
+                    Show this setting
+                  </button>
+                )}
+                {guided && (
+                  <div className="written-row">
+                    <span>Your row so far</span>
+                    <div className="answer-cells" aria-label="Your answer row">
+                      {step.answer.split('').map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          aria-label={'Write column ' + (i + 1)}
+                          aria-pressed={column === i}
+                          onClick={() => {
+                            setError('');
+                            patch({ column: i });
+                          }}
+                        >
+                          {example
+                            ? step.answer[i]
+                            : columnEntry(given, i) || '·'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             {example ? (
               <div className="example-answer">
@@ -350,27 +506,40 @@ export default function ManualLesson({
                 <label htmlFor={answerId}>
                   {reviewing
                     ? 'Your checked entry'
-                    : step.answer.length === 1
-                      ? 'Your character'
-                      : 'Your row · ' + step.answer.length + ' characters'}
+                    : guided
+                      ? '3. Write the result for column ' + (column + 1)
+                      : step.answer.length === 1
+                        ? 'Write the result'
+                        : 'Your row · ' + step.answer.length + ' characters'}
                 </label>
                 <input
                   ref={field}
                   id={answerId}
                   value={value}
                   readOnly={reviewing}
-                  maxLength={64}
+                  maxLength={guided && !reviewing ? 1 : 64}
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? answerId + '-error' : undefined}
                   placeholder={
-                    step.answer.length === 1 ? '·' : 'Write your answer'
+                    guided || step.answer.length === 1
+                      ? '·'
+                      : 'Copy the row here'
                   }
                   onChange={(event) => {
                     setError('');
-                    patch({ draft: event.target.value.toUpperCase() });
+                    patch({
+                      draft: guided
+                        ? writeColumn(
+                            progress.draft,
+                            column,
+                            event.target.value,
+                            step.answer.length,
+                          )
+                        : event.target.value.toUpperCase(),
+                    });
                   }}
                 />
                 {error && (
@@ -383,9 +552,42 @@ export default function ManualLesson({
                   </p>
                 )}
                 <BookButton type="submit">
-                  {reviewing ? 'Next checked step' : 'Check my answer'}{' '}
+                  {reviewing
+                    ? 'Next checked step'
+                    : guided
+                      ? 'Check character'
+                      : 'Check my answer'}{' '}
                   <ArrowRight size={17} />
                 </BookButton>
+                {guided && !reviewing && (
+                  <details className="whole-row-entry">
+                    <summary>Edit or paste the whole row</summary>
+                    <label htmlFor={answerId + '-row'}>
+                      Your row · 13 characters
+                    </label>
+                    <input
+                      id={answerId + '-row'}
+                      value={progress.draft}
+                      maxLength={64}
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      onChange={(event) => {
+                        setError('');
+                        patch({ draft: event.target.value.toUpperCase() });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          check(true);
+                        }
+                      }}
+                    />
+                    <BookButton type="button" onClick={() => check(true)}>
+                      Check whole row <ArrowRight size={17} />
+                    </BookButton>
+                  </details>
+                )}
               </form>
             )}
             <div className="checksum-actions">

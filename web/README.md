@@ -19,6 +19,17 @@ answers remain editable and do not advance the worksheet. The worked-example
 toggle reveals answers with separate navigation and wheel settings; viewing an
 answer never completes the learner's entry.
 
+Each task starts with a short instruction and a link to its page in the book.
+Addition is guided one column at a time: the highlighted top and bottom characters
+match the wheel selectors, its current reading is distinguished from the required
+setting, and the learner writes and checks the result. A whole-row entry remains
+available for transcription and editing. Copying, table lookup, and shifting show
+the corresponding paper reference; unknown cells use the book's pink color and `?`.
+The header explanation separates the fixed prefix, threshold, identifier, share
+index, and dice characters. This presentation preserves all existing task IDs,
+answers, and saved progress. A middle dot in a draft denotes an empty input cell,
+distinct from `?`, and cannot pass an answer check.
+
 The dice exercise creates disposable fresh test
 keys from browser cryptographic randomness: two independent 26-character initial
 shares determine a 128-bit seed, and every pair of the resulting A/C/D shares must
@@ -64,7 +75,7 @@ button component with explicit native appearance and readable enabled/disabled
 colors. Regressions check its rendered contrast without a stylesheet and enforce
 its use throughout the workshop and workbench.
 
-The 38 automated tests also check all 1,024 additions and multiplications,
+The 43 automated tests also check all 1,024 additions and multiplications,
 physical alignment on both multiplication faces, 29,760 pair/target weight cases,
 all cells in four published recovery/derivation lessons, eight independent checksum
 traces, fresh sessions, malformed WASM arguments, unbiased sampling, rejected dice
@@ -75,6 +86,8 @@ and progress retained across workbench visits and review/reset actions. Manual
 workbook coverage verifies every required entry, rejects wrong answers and skipped
 steps, isolates example controls, restores partial drafts and wheel settings,
 revalidates completed steps, and preserves unreadable saves and storage failures.
+Guided-entry tests check per-column progression, correction without losing later
+entries, empty and unknown cells, older full-row drafts, and book-page references.
 
 Regenerate the public wheel fixtures and display tables from the pinned BIP93 Python
 reference with `python3 scripts/generate-volvelle-fixtures.py` in the repository root.

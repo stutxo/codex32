@@ -1375,3 +1375,368 @@
     letter-spacing: 0.09em;
   }
 }
+
+/* A shared instruction connects the instrument to the facing answer sheet. */
+.guided-spread .lesson-intro {
+  grid-column: 1 / -1;
+  padding: 22px clamp(18px, 2.1vw, 34px) 26px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border);
+}
+.lesson-intro .running-head {
+  margin: 0;
+  padding-bottom: 14px;
+}
+.lesson-intro .running-head a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lesson-route {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 20px;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 1rem;
+}
+.lesson-route span + span {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.lesson-intro .manual-instruction {
+  margin-top: 8px;
+}
+.lesson-intro .manual-instruction h2 {
+  margin: 8px 0 12px;
+}
+.lesson-intro .manual-instruction p {
+  max-width: 78ch;
+}
+.share-header-help {
+  margin-top: 18px;
+  max-width: 800px;
+  font-size: 1rem;
+}
+.share-header-help summary,
+.whole-row-entry summary {
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.share-header-help p {
+  margin-top: 16px;
+  line-height: 1.6;
+}
+.share-header-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.share-header-parts > div {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  background: #f1e9d2;
+}
+.share-header-parts dt {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.share-header-parts dd {
+  font-family: 'Courier New', monospace;
+  font-size: 1.4rem;
+  margin-top: 4px;
+}
+.own-random-characters {
+  display: block;
+  overflow-wrap: anywhere;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
+  margin-top: 8px;
+}
+.guided-spread .magic-instrument {
+  position: static;
+}
+.guided-spread .manual-worksheet {
+  align-self: start;
+  position: sticky;
+  top: 12px;
+  min-width: 0;
+}
+.guided-spread .manual-worksheet .running-head {
+  padding-bottom: 14px;
+}
+.guided-spread .manual-givens {
+  margin-block: 18px;
+}
+.guided-spread .operand-cells small {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-weight: 400;
+}
+.guided-spread .operand-cells span {
+  display: block;
+}
+.column-instruction {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin: 18px 0 12px;
+  font-size: 1rem;
+  color: var(--primary);
+}
+.column-instruction > span {
+  font-family: 'Courier New', monospace;
+}
+.wheel-calculator .wheel-controls {
+  margin-top: 0;
+  gap: 14px;
+}
+.wheel-calculator .wheel-controls label {
+  font-size: 0.9375rem;
+}
+.wheel-controls small {
+  display: block;
+  margin: 4px 0 8px;
+  font-size: 0.9375rem;
+  color: var(--primary);
+}
+.wheel-calculator .wheel-controls select {
+  min-height: 44px;
+  font-size: 1.125rem;
+}
+.wheel-calculator .wheel-output {
+  margin: 8px 0 18px;
+  padding: 14px 18px;
+}
+.wheel-calculator[data-aligned='false'] .wheel-output {
+  background: #e6ddc5;
+  color: #554a35;
+}
+.wheel-alignment {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin-top: 12px;
+  color: var(--muted-foreground);
+}
+.wheel-calculator[data-aligned='true'] .wheel-alignment {
+  color: var(--leaf);
+}
+.reading-label {
+  display: block;
+  font-size: 0.875rem;
+  font-family: Arial, sans-serif;
+  margin-bottom: 4px;
+}
+.written-row {
+  margin-top: 18px;
+}
+.written-row > span {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.answer-cells {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 8px;
+}
+.answer-cells button {
+  font-family: 'Courier New', monospace;
+  font-size: 1.125rem;
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: #fffbee;
+}
+.answer-cells button[aria-pressed='true'] {
+  background: #493d78;
+  color: #fff9e9;
+  border-color: #493d78;
+}
+.guided-spread .answer-form {
+  margin-top: 20px;
+}
+.guided-spread .answer-form > input[maxlength='1'] {
+  width: 90px;
+  min-height: 64px;
+  font-size: 2rem;
+  text-align: center;
+  letter-spacing: normal;
+}
+.whole-row-entry {
+  margin-top: 20px;
+  font-size: 0.875rem;
+}
+.whole-row-entry[open] summary {
+  margin-bottom: 16px;
+}
+.unknown-guide {
+  border-left: 3px solid #a7384b;
+  background: #f3dce0;
+  padding: 16px;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.paper-reference h3 {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 2.6vw, 2.5rem);
+  color: var(--red);
+  line-height: 1.2;
+  margin: 18px 0;
+}
+.paper-reference p {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 16px 0;
+  max-width: 65ch;
+}
+.paper-reference .small-label {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.paper-row {
+  display: grid;
+  grid-template-columns: repeat(var(--paper-columns), minmax(0, 1fr));
+  margin: 24px 0;
+}
+.paper-row > span {
+  border: 1px solid #b9ad8c;
+  border-right: 0;
+  padding: 14px 0;
+  font-size: clamp(1rem, 2.1vw, 1.8rem);
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  background: #fff9e9;
+}
+.paper-row > span:last-child {
+  border-right: 1px solid #b9ad8c;
+}
+.paper-row .paper-mark {
+  color: #fff9e9;
+  background: #493d78;
+}
+.paper-row .paper-remove {
+  text-decoration: line-through;
+  color: #7a6b53;
+  background: #e7ddc4;
+}
+.paper-row .paper-unknown {
+  background: #f1d6dc;
+  color: #873146;
+}
+.paper-tool-note {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.lookup-target {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.lookup-target strong {
+  font-family: 'Courier New', monospace;
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  color: var(--primary);
+}
+.shift-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-block: 28px;
+}
+.shift-pieces span {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin-bottom: 10px;
+}
+.shift-pieces code {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 1.3rem;
+  letter-spacing: 0.12em;
+  overflow-wrap: anywhere;
+  padding: 14px;
+  border: 1px solid #b9ad8c;
+  background: #fff9e9;
+}
+.guided-spread .table-reference {
+  margin-top: 24px;
+}
+.guided-spread .table-reference h3 {
+  font-size: 1.5rem;
+}
+.guided-spread .entry-count {
+  font-size: 0.8125rem;
+  letter-spacing: normal;
+}
+@media (max-width: 980px) {
+  .guided-spread .manual-worksheet {
+    position: static;
+  }
+  .guided-spread .lesson-intro {
+    padding: 20px 26px;
+  }
+  .guided-spread .magic-instrument {
+    padding-bottom: 16px;
+  }
+}
+@media (max-width: 520px) {
+  .guided-spread .lesson-intro {
+    padding: 18px 16px;
+  }
+  .lesson-intro .running-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .guided-spread .manual-worksheet .running-head {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .guided-spread .operand-cells button {
+    font-size: 1rem;
+  }
+  .guided-spread .wheel-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wheel-calculator .wheel-controls label {
+    font-size: 0.875rem;
+  }
+  .shift-pieces {
+    gap: 12px;
+  }
+  .shift-pieces code {
+    font-size: 1.05rem;
+  }
+}
+.column-instruction {
+  align-items: center;
+}
+.column-instruction .column-arrow {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+}
+.column-instruction .column-arrow:disabled {
+  opacity: 0.5;
+}
+.column-instruction strong {
+  flex: 1;
+}
+.column-instruction > span {
+  flex-basis: 100%;
+  order: 1;
+}
+.guided-spread .operand-cells .unknown-operand {
+  background: #f1d6dc;
+  color: #873146;
+}

@@ -35,9 +35,9 @@ export function checksumExercise(engine: Engine, encoded: string): Exercise {
   const steps: ExerciseStep[] = [
     {
       id: 'endpoint',
-      title: 'Write the final check row.',
+      title: 'Copy the given bottom row.',
       instruction:
-        'The paper gives you the final row: SECRETSHARE32. Copy it below. Later you will work upward from this row to find the missing checksum characters.',
+        'Write SECRETSHARE32 in your answer. The book supplies this row so you can solve the missing checksum characters on the way back up.',
       kind: 'copy',
       answer: 'SECRETSHARE32',
       direction: 'down',
@@ -46,7 +46,7 @@ export function checksumExercise(engine: Engine, encoded: string): Exercise {
       id: 'prefill',
       title: 'Add the first two rows.',
       instruction:
-        'Use the addition wheel for each column. Set First character to the top character, choose Character to read from the row beneath it, and write the answer. Do all 13 columns.',
+        'Work on this share alone. In each highlighted column, turn the wheel to the top character, read the bottom character’s window, and write the result.',
       kind: 'addition',
       left: sheet.initialData,
       right: sheet.initialRow,
@@ -61,7 +61,7 @@ export function checksumExercise(engine: Engine, encoded: string): Exercise {
         id: prefix + '-lookup',
         title: 'Look up the next table row.',
         instruction:
-          'Take the first two characters of your working row. Select them in the checksum table reference, then copy the 13-character lookup row into your workbook.',
+          'The first two characters of your working row choose an entry in the book’s checksum table. Find that entry, then copy its 13 characters.',
         kind: 'lookup',
         left: row.before,
         key: row.key,

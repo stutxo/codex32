@@ -21,6 +21,15 @@ import type { Engine } from '@/lib/practice';
 import { publicAsset } from '@/lib/public-asset';
 
 export type WheelKind = 'recovery' | 'translation' | 'addition' | 'fusion';
+type WheelProps = {
+  engine: Engine;
+  kind: WheelKind;
+  primary: string;
+  other: string;
+  target?: string;
+  onPrimary: (value: string) => void;
+  onOther: (value: string) => void;
+};
 export function wheelAnswer(
   engine: Engine,
   kind: WheelKind,
@@ -60,15 +69,8 @@ export default function Wheel({
   target = 'S',
   onPrimary,
   onOther,
-}: {
-  engine: Engine;
-  kind: WheelKind;
-  primary: string;
-  other: string;
-  target?: string;
-  onPrimary: (value: string) => void;
-  onOther: (value: string) => void;
-}) {
+  controls = true,
+}: WheelProps & { controls?: boolean }) {
   const id = useId();
   const drag = useRef<{ pointer: number; start: number; slot: number } | null>(
     null,
@@ -85,7 +87,6 @@ export default function Wheel({
   const slot = Math.max(0, order.indexOf(primary));
   const count = order.length;
   const answer = wheelAnswer(engine, kind, primary, other, target);
-  const choice = kind === 'recovery' ? order : alphabet;
   const isMultiplication = kind === 'translation' || kind === 'fusion';
   const zero = isMultiplication && primary === 'Q';
   const format = (c: string | null) =>
@@ -104,14 +105,8 @@ export default function Wheel({
     kind === 'recovery'
       ? 'Share to translate'
       : kind === 'addition'
-        ? 'First character'
+        ? 'Top-row character'
         : 'Translation factor';
-  const otherLabel =
-    kind === 'recovery'
-      ? 'Other share'
-      : kind === 'fusion'
-        ? 'Factor to combine'
-        : 'Character to read';
   return (
     <div className="wheel-tool">
       <div className="wheel-heading">
@@ -186,7 +181,7 @@ export default function Wheel({
         <desc id={`${id}-desc`}>
           Drag the inner disc to change {primaryLabel.toLowerCase()}. Read{' '}
           {other} to get {answer ?? 'an invalid index pair'}. Use the labeled
-          controls below for keyboard access.
+          controls beside the worksheet for keyboard access.
         </desc>
         <circle r="232" className="wheel-cover" />
         <circle r="224" className="wheel-gold-line" />
@@ -314,9 +309,74 @@ export default function Wheel({
           <ChevronRight size={17} />
         </button>
       </div>
+      {controls && (
+        <WheelControls
+          engine={engine}
+          kind={kind}
+          primary={primary}
+          other={other}
+          target={target}
+          onPrimary={onPrimary}
+          onOther={onOther}
+        />
+      )}
+      <p className="wheel-footnote">
+        {zero
+          ? 'Q is zero. With a zero factor, every input maps to Q.'
+          : kind === 'addition'
+            ? 'Turn the disc to the top-row character. Find the bottom-row character on the outside ring and read its window.'
+            : kind === 'recovery'
+              ? target === 'S'
+                ? 'Point the handle at the share being translated; read the other share’s index. Their roles matter.'
+                : 'For deriving D, this digital adaptation relabels the paper recovery ring to target D.'
+              : kind === 'fusion'
+                ? 'The fusion face combines factors. A 2-share recovery uses one factor per share; fusion is useful for larger thresholds.'
+                : 'Inner characters point to their translated outer characters. Q always maps to Q.'}
+      </p>
+    </div>
+  );
+}
+
+export function WheelControls({
+  engine,
+  kind,
+  primary,
+  other,
+  target = 'S',
+  onPrimary,
+  onOther,
+  expected,
+}: WheelProps & { expected?: { primary: string; other: string } }) {
+  const id = useId();
+  const choice = kind === 'recovery' ? recoveryOrder(engine, target) : alphabet;
+  const primaryLabel =
+    kind === 'recovery'
+      ? 'Share to translate'
+      : kind === 'addition'
+        ? 'Top-row character'
+        : 'Translation factor';
+  const otherLabel =
+    kind === 'recovery'
+      ? 'Other share'
+      : kind === 'addition'
+        ? 'Bottom-row character'
+        : kind === 'fusion'
+          ? 'Factor to combine'
+          : 'Character to translate';
+  const answer = wheelAnswer(engine, kind, primary, other, target);
+  const aligned =
+    !expected || (primary === expected.primary && other === expected.other);
+  return (
+    <div className="wheel-calculator" data-aligned={aligned}>
       <div className="wheel-controls">
         <label htmlFor={`${id}-primary`}>
           {primaryLabel}
+          {expected && (
+            <small>
+              1. Set to <b>{expected.primary}</b>
+              {kind === 'translation' ? ' · ' + symbol(expected.primary) : ''}
+            </small>
+          )}
           <NativeSelect
             id={`${id}-primary`}
             value={primary}
@@ -325,13 +385,20 @@ export default function Wheel({
             {choice.split('').map((c) => (
               <NativeSelectOption key={c} value={c}>
                 {c}
-                {kind === 'fusion' ? ` · ${symbol(c)}` : ''}
+                {kind === 'fusion' || kind === 'translation'
+                  ? ` · ${symbol(c)}`
+                  : ''}
               </NativeSelectOption>
             ))}
           </NativeSelect>
         </label>
         <label htmlFor={`${id}-other`}>
           {otherLabel}
+          {expected && (
+            <small>
+              2. Read <b>{expected.other}</b>
+            </small>
+          )}
           <NativeSelect
             id={`${id}-other`}
             value={other}
@@ -346,33 +413,28 @@ export default function Wheel({
           </NativeSelect>
         </label>
       </div>
-      <output className="wheel-output">
+      {expected && (
+        <p className="wheel-alignment">
+          {aligned
+            ? 'The wheel is set. Write its result below.'
+            : 'Set both characters above to match this column.'}
+        </p>
+      )}
+      <output className="wheel-output" aria-live="polite">
         <strong className="wheel-reading" aria-hidden="true">
-          {answer
-            ? kind === 'recovery' || kind === 'fusion'
-              ? symbol(answer)
-              : answer
-            : '—'}
+          {answer ?? '—'}
         </strong>
         <span>
+          <b className="reading-label">
+            {aligned
+              ? 'Result · write this character'
+              : 'Current wheel reading'}
+          </b>
           {answer
             ? `${primary} ${kind === 'recovery' ? `with ${other}, toward ${target}` : `${kind === 'addition' ? '+' : '×'} ${other}`} = ${answer}${kind === 'recovery' || kind === 'fusion' ? ` (${symbol(answer)})` : ''}`
             : 'Choose distinct share indices, neither equal to the target.'}
         </span>
       </output>
-      <p className="wheel-footnote">
-        {zero
-          ? 'Q is zero. With a zero factor, every input maps to Q.'
-          : kind === 'addition'
-            ? 'This digital layout displays the paper table’s lookup windows. Codex32 addition follows its own alphabet rules.'
-            : kind === 'recovery'
-              ? target === 'S'
-                ? 'Point the handle at the share being translated; read the other share’s index. Their roles matter.'
-                : 'For deriving D, this digital adaptation relabels the paper recovery ring to target D.'
-              : kind === 'fusion'
-                ? 'The fusion face combines factors. A 2-share recovery uses one factor per share; fusion is useful for larger thresholds.'
-                : 'Inner characters point to their translated outer characters. Q always maps to Q.'}
-      </p>
     </div>
   );
 }
