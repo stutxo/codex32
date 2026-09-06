@@ -137,11 +137,16 @@ export function visibleShare(
   example = false,
 ) {
   if (example || exercise.verification) return exercise.output;
-  const characters = (exercise.output.slice(0, 35) + '?'.repeat(13)).split('');
+  const characters = (
+    exercise.checksum
+      ? exercise.output.slice(0, 35) + '?'.repeat(13)
+      : exercise.output.slice(0, 3) + '?'.repeat(exercise.output.length - 3)
+  ).split('');
   exercise.steps.forEach((step, i) => {
     if (
-      step.direction !== 'up' ||
-      step.kind !== 'copy' ||
+      (exercise.checksum
+        ? step.direction !== 'up' || step.kind !== 'copy'
+        : step.kind !== 'addition') ||
       !step.position ||
       progress.answers[i] !== step.answer
     )
@@ -151,6 +156,57 @@ export function visibleShare(
     });
   });
   return characters.join('');
+}
+
+// Count filled wheel readings, including matching entries in the current row.
+// This display never grants answer credit. Supplied rows and previews do not count.
+export function readingProgress(exercise: Exercise, progress: LessonProgress) {
+  let completed = 0,
+    total = 0;
+  exercise.steps.forEach((step, i) => {
+    if (!['addition', 'translation', 'recovery'].includes(step.kind)) return;
+    step.answer.split('').forEach((letter, column) => {
+      if (
+        letter === '?' ||
+        step.left?.[column] === '?' ||
+        step.right?.[column] === '?'
+      )
+        return;
+      total++;
+      if (
+        progress.answers[i] === step.answer ||
+        (i === progress.cursor &&
+          i === progress.answers.length &&
+          normalizeAnswer(progress.draft)[column] === letter)
+      )
+        completed++;
+    });
+  });
+  return { completed, total };
+}
+
+// Translation follows the paper: finish one row at a fixed factor before
+// translating the second row and adding them. Show that work without exposing
+// characters in the final share before their addition has been checked.
+export function visibleTranslation(
+  exercise: Exercise,
+  progress: LessonProgress,
+  cursor: number,
+) {
+  const step = exercise.steps[cursor];
+  if (step?.kind !== 'translation') return null;
+  const row = step.id.endsWith('-translate-0') ? '0' : '1';
+  const steps = exercise.steps.filter((entry) =>
+    entry.id.endsWith('-translate-' + row),
+  );
+  const value = steps
+    .map((entry) => {
+      const index = exercise.steps.indexOf(entry);
+      return progress.answers[index] === entry.answer ? entry.answer : '?';
+    })
+    .join('');
+  const source = exercise.steps[Number(row)].left!;
+  return { source, factor: step.left!, value };
 }
 
 // A blank entry is distinct from the book's ?, which means an unknown value.

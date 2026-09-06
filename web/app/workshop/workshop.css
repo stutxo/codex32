@@ -2206,6 +2206,56 @@
   display: block;
   font-size: 0.875rem;
 }
+.tutorial-share-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tutorial-share [data-slot='progress'] {
+  margin: 12px 0;
+}
+.tutorial-share [data-slot='progress-track'] {
+  height: 5px;
+}
+.tutorial-translation-row {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.tutorial-translation-row code {
+  font-size: 1rem;
+  margin-bottom: 0;
+}
+.tutorial-reset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 0 28px 16px;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.tutorial-reset {
+  min-height: 44px;
+}
+.tutorial-completion {
+  display: block;
+  border-top: 1px solid var(--border);
+  padding: 24px 28px;
+  color: var(--primary);
+  line-height: 1.6;
+}
+.tutorial-current-step,
+.tutorial-factor-note {
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.tutorial-factor-note {
+  max-width: 48ch;
+  margin-inline: auto;
+}
 .tutorial-share code,
 .secret-string {
   display: block;
@@ -2521,6 +2571,9 @@
   }
   .workshop-tabs [role='tab'] {
     min-height: 44px;
+    white-space: normal;
+    flex-wrap: wrap;
+    line-height: 1.25;
   }
   .tutorial-heading {
     display: grid;
@@ -2550,5 +2603,10 @@
   }
   .tutorial-start .tutorial-progress {
     display: none;
+  }
+  .tutorial-share,
+  .tutorial-reset-row,
+  .tutorial-completion {
+    padding-inline: 18px;
   }
 }

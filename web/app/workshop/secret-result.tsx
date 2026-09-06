@@ -18,7 +18,10 @@ export default function SecretResult({
       data-recovery-result="true"
       tabIndex={-1}
     >
-      <h2>Your secret is back.</h2>
+      <h2>Secret revealed.</h2>
+      <p className="tutorial-progress">
+        {secret.length} / {secret.length} characters · complete
+      </p>
       <p>
         Two shares recovered the same real, disposable test key. This complete{' '}
         <b>S</b> string is what a wallet imports.

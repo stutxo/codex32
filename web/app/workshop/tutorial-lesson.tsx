@@ -1,6 +1,11 @@
 'use client';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import BookButton from '@/components/book-button';
+import {
+  Progress,
+  ProgressLabel,
+  ProgressValue,
+} from '@/components/ui/progress';
 import { grouped } from '@/lib/practice';
 import {
   editLesson,
@@ -13,13 +18,21 @@ import {
   autoNextEntry,
   tutorialCalculation,
   visibleShare,
+  readingProgress,
+  visibleTranslation,
+  stepGuide,
 } from '@/lib/workbook-guide';
 import ManualLesson from './manual-lesson';
 import Wheel, { wheelAnswer, type WheelKind } from './wheel';
 import SecretResult from './secret-result';
 import { alphabet } from '@/lib/workshop';
 
-type Props = ComponentProps<typeof ManualLesson> & { onSkipPaper?: () => void };
+type Props = ComponentProps<typeof ManualLesson> & {
+  onSkipPaper?: () => void;
+  onContinue: () => void;
+  continueLabel: string;
+  onReset: () => void;
+};
 export default function TutorialLesson(props: Props) {
   const {
     engine,
@@ -32,6 +45,9 @@ export default function TutorialLesson(props: Props) {
     target = 'S',
     session,
     onSkipPaper,
+    onContinue,
+    continueLabel,
+    onReset,
   } = props;
   const [paper, setPaper] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -75,13 +91,16 @@ export default function TutorialLesson(props: Props) {
     ? wheelAnswer(engine, kind, primary, right, target)
     : null;
   const aligned = primary === left;
+  const readings = readingProgress(exercise, progress);
+  const translation = visibleTranslation(exercise, progress, next.cursor);
+  const displayedShare = visibleShare(exercise, progress, example);
   const title = exercise.verification
     ? 'Check the complete share.'
     : exercise.checksum
       ? 'Give share ' + exercise.output[8] + ' its checksum.'
       : target === 'D'
         ? 'Make another share.'
-        : 'Bring the secret back.';
+        : 'Reveal secret.';
   const description = exercise.verification
     ? 'On paper, you recopy the complete share and calculate again to catch mistakes. Here the computer can check it for you.'
     : exercise.checksum
@@ -147,6 +166,9 @@ export default function TutorialLesson(props: Props) {
       pending.current = null;
       setBusy(false);
       const result = autoNextEntry(exercise, progress);
+      const following = result.correct
+        ? tutorialCalculation(exercise, result.progress, target)
+        : result.progress;
       if (result.correct)
         setWritten({
           value: task.letter,
@@ -157,11 +179,21 @@ export default function TutorialLesson(props: Props) {
         setError(
           'Your saved row needs a correction. Open the paper worksheet to edit it, or complete this section with code.',
         );
-      onChange(result.progress);
-      if (result.complete) onComplete();
+      onChange(following);
+      if (result.correct && following.answers.length === exercise.steps.length)
+        onComplete();
     }, 650);
     return () => clearTimeout(timer);
-  }, [active, example, paper, exercise, progress, onChange, onComplete]);
+  }, [
+    active,
+    example,
+    paper,
+    exercise,
+    progress,
+    onChange,
+    onComplete,
+    target,
+  ]);
   function complete() {
     if (busy || example) return;
     const result = autoExercise(
@@ -172,6 +204,60 @@ export default function TutorialLesson(props: Props) {
     onChange(result.progress);
     onComplete();
   }
+  function reset() {
+    pending.current = null;
+    setBusy(false);
+    setWritten(null);
+    setError('');
+    setPaper(false);
+    onReset();
+  }
+  const resetButton = !example && (
+    <button className="text-button tutorial-reset" onClick={reset}>
+      Reset this section
+    </button>
+  );
+  const shareProgress = (
+    <div className="tutorial-share" aria-label="Share progress">
+      <div className="tutorial-share-label">
+        <span>
+          {exercise.checksum
+            ? 'Share ' + exercise.output[8]
+            : target === 'D'
+              ? 'Share D'
+              : 'Secret · share S'}
+        </span>
+        <span>
+          {displayedShare.replace(/\?/g, '').length} / {displayedShare.length}{' '}
+          characters
+        </span>
+      </div>
+      <code>{grouped(displayedShare)}</code>
+      <Progress
+        value={readings.total ? (readings.completed / readings.total) * 100 : 0}
+      >
+        <ProgressLabel>
+          {done ? 'Section complete' : 'Worksheet progress'}
+        </ProgressLabel>
+        <ProgressValue>
+          {() => readings.completed + ' / ' + readings.total + ' readings'}
+        </ProgressValue>
+      </Progress>
+      {!done && (
+        <small>
+          {exercise.checksum
+            ? 'The ? spaces fill as you solve the checksum on the way back up.'
+            : 'Translate each row first, then add them to fill the ? spaces in the final share.'}
+        </small>
+      )}
+      {translation && !done && (
+        <div className="tutorial-translation-row">
+          <span>Translating share {translation.source} · working row</span>
+          <code>{grouped(translation.value)}</code>
+        </div>
+      )}
+    </div>
+  );
   if (paper)
     return (
       <div className="paper-mode">
@@ -181,12 +267,18 @@ export default function TutorialLesson(props: Props) {
         >
           ← Back to the quick tutorial
         </button>
+        {shareProgress}
+        {resetButton}
         <ManualLesson {...props} active={active} />
       </div>
     );
   if (done && !exercise.checksum && target === 'S')
     return (
       <>
+        <div className="tutorial-reset-row">
+          {resetButton}
+          <span>Your key and the other worksheets are kept.</span>
+        </div>
         <SecretResult secret={exercise.output} addresses={session.addresses} />
         <button className="text-button" onClick={() => setPaper(true)}>
           Review the paper calculations
@@ -202,165 +294,181 @@ export default function TutorialLesson(props: Props) {
       <header className="tutorial-heading">
         <h2>{title}</h2>
         <p>{description}</p>
-        {!example && !exercise.verification && (
+        {!example && (done || !exercise.verification) && (
           <BookButton
             className="tutorial-complete-button"
             disabled={busy}
-            onClick={done ? onComplete : complete}
+            onClick={done ? onContinue : complete}
           >
-            {done ? 'Continue the tutorial' : 'Auto-complete this section'} →
+            {done ? continueLabel : 'Auto-complete this section'} →
           </BookButton>
         )}
       </header>
-      {exercise.verification && onSkipPaper && !example && (
-        <div className="paper-check-choice">
-          <BookButton onClick={onSkipPaper}>
-            Check with code and continue →
-          </BookButton>
-          <button className="text-button" onClick={() => setPaper(true)}>
-            Try the paper verification instead
-          </button>
-        </div>
-      )}
-      <div className="tutorial-grid">
-        <div className="tutorial-instrument">
-          {hasWheel && !done && (
-            <p className="tutorial-instruction">
-              {kind === 'addition' ? (
-                <>
-                  Turn to <b>{left}</b>. Read window <b>{right}</b>.
-                </>
-              ) : kind === 'translation' ? (
-                <>
-                  Set factor <b>{left}</b>. Translate character <b>{right}</b>.
-                </>
-              ) : (
-                <>
-                  Point to share <b>{left}</b>. Read share <b>{right}</b>.
-                </>
-              )}
-            </p>
-          )}
-          {hasWheel ? (
-            <Wheel
-              engine={engine}
-              kind={kind}
-              primary={view.primary}
-              other={right}
-              target={target}
-              onPrimary={(value) => {
-                if (value === left) patch({ primary: value });
-              }}
-              onTurn={(value) => patch({ primary: value })}
-              onOther={() => {}}
-              guided={{ primary: left, other: right }}
-              controls={false}
-              factorSide={false}
-              onFactorSide={() => {}}
-              showFlip={false}
-            />
-          ) : (
-            <div className="tutorial-finished-mark">
-              {step ? '✎' : '✓'}
-              <p>
-                {step
-                  ? 'Your saved row needs a correction.'
-                  : 'The calculations are complete.'}
-              </p>
+      {shareProgress}
+      <div className="tutorial-reset-row">
+        {resetButton}
+        {!example && <span>Your key and the other worksheets are kept.</span>}
+      </div>
+      {done ? (
+        <output className="tutorial-completion">
+          {exercise.verification
+            ? 'Paper verification complete.'
+            : 'Complete. The computer has checked this share.'}{' '}
+          Your result is shown above. Continue when you’re ready.
+        </output>
+      ) : (
+        <>
+          {exercise.verification && onSkipPaper && !example && (
+            <div className="paper-check-choice">
+              <BookButton onClick={onSkipPaper}>
+                Check with code and continue →
+              </BookButton>
+              <button className="text-button" onClick={() => setPaper(true)}>
+                Try the paper verification instead
+              </button>
             </div>
           )}
-        </div>
-        <div className="tutorial-controls">
-          {hasWheel && !done && (
-            <>
-              <output className="tutorial-reading" aria-live="polite">
-                <strong>{answer ?? '—'}</strong>
-                <span>
-                  {aligned
-                    ? 'At the highlighted setting'
-                    : 'Your current wheel reading'}
-                  <br />
-                  {primary}{' '}
-                  {kind === 'addition'
-                    ? '+'
-                    : kind === 'recovery'
-                      ? 'with'
-                      : '×'}{' '}
-                  {right}
-                </span>
-              </output>
-              <button
-                className="secondary-button"
-                disabled={busy}
-                onClick={autoLetter}
-              >
-                {example
-                  ? 'Show the correct setting'
-                  : 'Turn & fill next letter'}
-              </button>
-              {written &&
-                written.example === example &&
-                (!example || written.cursor === next.cursor) && (
-                  <output aria-live="polite">
-                    {example ? 'Example result' : 'Last letter recorded'}:{' '}
-                    <b>{written.value}</b>
+          <div className="tutorial-grid">
+            <div className="tutorial-instrument">
+              {hasWheel && !done && (
+                <>
+                  <p className="tutorial-current-step">
+                    {stepGuide(step, Boolean(exercise.checksum), target).phase}{' '}
+                    ·{' '}
+                    {step.position
+                      ? 'Position ' + step.position + ' of 48'
+                      : 'Column ' + (column + 1) + ' of ' + step.answer.length}
+                  </p>
+                  <p className="tutorial-instruction">
+                    {kind === 'addition' ? (
+                      <>
+                        Turn to <b>{left}</b>. Read window <b>{right}</b>.
+                      </>
+                    ) : kind === 'translation' ? (
+                      <>
+                        Keep factor <b>{left}</b> set for share{' '}
+                        <b>{translation?.source}</b>. Read character{' '}
+                        <b>{right}</b>.
+                      </>
+                    ) : (
+                      <>
+                        Point to share <b>{left}</b>. Read share <b>{right}</b>.
+                      </>
+                    )}
+                  </p>
+                  {kind === 'translation' && (
+                    <p className="tutorial-factor-note">
+                      The setting stays fixed for this row. Only the highlighted
+                      character changes as you fill each letter.
+                    </p>
+                  )}
+                </>
+              )}
+              {hasWheel ? (
+                <Wheel
+                  engine={engine}
+                  kind={kind}
+                  primary={view.primary}
+                  other={right}
+                  target={target}
+                  onPrimary={(value) => {
+                    if (value === left) patch({ primary: value });
+                  }}
+                  onTurn={(value) => patch({ primary: value })}
+                  onOther={() => {}}
+                  guided={{ primary: left, other: right }}
+                  controls={false}
+                  factorSide={false}
+                  onFactorSide={() => {}}
+                  showFlip={false}
+                />
+              ) : (
+                <div className="tutorial-finished-mark">
+                  {step ? '✎' : '✓'}
+                  <p>
+                    {step
+                      ? 'Your saved row needs a correction.'
+                      : 'The calculations are complete.'}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="tutorial-controls">
+              {hasWheel && !done && (
+                <>
+                  <output className="tutorial-reading" aria-live="polite">
+                    <strong>{answer ?? '—'}</strong>
+                    <span>
+                      {aligned
+                        ? 'At the highlighted setting'
+                        : 'Your current wheel reading'}
+                      <br />
+                      {primary}{' '}
+                      {kind === 'addition'
+                        ? '+'
+                        : kind === 'recovery'
+                          ? 'with'
+                          : '×'}{' '}
+                      {right}
+                    </span>
                   </output>
-                )}
-            </>
-          )}
-          {error && <p role="alert">{error}</p>}
-          {step && !hasWheel && (
-            <p>
-              Open the paper worksheet to edit your saved row, or let the
-              computer complete this section.
-            </p>
-          )}
-          {exercise.verification && !example && (
-            <button
-              className="secondary-button"
-              disabled={busy}
-              onClick={complete}
-            >
-              Auto-complete the paper worksheet
-            </button>
-          )}
-          <p className="tutorial-progress">
-            {progress.answers.length === exercise.steps.length
-              ? 'Section complete'
-              : 'The computer checks each finished share. Paper verification is optional under Examples & tools.'}
-          </p>
-          <details className="tutorial-explanation">
-            <summary>What is the computer doing?</summary>
-            <p>
-              {exercise.checksum
-                ? 'It follows the book’s table lookups, shifts and additions. To create a checksum it works down, then solves upward from SECRETSHARE32. To verify, it uses the complete share and checks that the finishing row is SECRETSHARE32.'
-                : 'It uses the book’s factors, translates each complete share, and adds the translated characters. Every result is checked against the Codex32 library.'}
-            </p>
-          </details>
-          <button className="text-button" onClick={() => setPaper(true)}>
-            Open the paper worksheet
-          </button>
-        </div>
-      </div>
-      <div className="tutorial-share">
-        <span>
-          {exercise.checksum
-            ? 'Share ' + exercise.output[8] + ' · all 48 positions'
-            : 'Result · share ' + target}
-        </span>
-        <code>
-          {grouped(
-            exercise.checksum
-              ? visibleShare(exercise, progress, example)
-              : done || example
-                ? exercise.output
-                : 'MS1' + '?'.repeat(45),
-          )}
-        </code>
-        {exercise.checksum && (
-          <small>The ? spaces become the checksum as you work upward.</small>
-        )}
-      </div>
+                  <button
+                    className="secondary-button"
+                    disabled={busy}
+                    onClick={autoLetter}
+                  >
+                    {example
+                      ? 'Show the correct setting'
+                      : kind === 'translation' && aligned
+                        ? 'Fill next letter'
+                        : 'Turn & fill next letter'}
+                  </button>
+                  {written &&
+                    written.example === example &&
+                    (!example || written.cursor === next.cursor) && (
+                      <output aria-live="polite">
+                        {example ? 'Example result' : 'Last letter recorded'}:{' '}
+                        <b>{written.value}</b>
+                      </output>
+                    )}
+                </>
+              )}
+              {error && <p role="alert">{error}</p>}
+              {step && !hasWheel && (
+                <p>
+                  Open the paper worksheet to edit your saved row, or let the
+                  computer complete this section.
+                </p>
+              )}
+              {exercise.verification && !example && (
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={complete}
+                >
+                  Auto-complete the paper worksheet
+                </button>
+              )}
+              <p className="tutorial-progress">
+                {progress.answers.length === exercise.steps.length
+                  ? 'Section complete'
+                  : 'The computer checks each finished share. Paper verification is optional under Examples & tools.'}
+              </p>
+              <details className="tutorial-explanation">
+                <summary>What is the computer doing?</summary>
+                <p>
+                  {exercise.checksum
+                    ? 'It follows the book’s table lookups, shifts and additions. To create a checksum it works down, then solves upward from SECRETSHARE32. To verify, it uses the complete share and checks that the finishing row is SECRETSHARE32.'
+                    : 'It uses the book’s factors, translates each complete share, and adds the translated characters. Every result is checked against the Codex32 library.'}
+                </p>
+              </details>
+              <button className="text-button" onClick={() => setPaper(true)}>
+                Open the paper worksheet
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }

@@ -443,6 +443,7 @@ export function computerCheck(
   engine: Engine,
   book: Book,
   index: ShareIndex,
+  advance = true,
 ): Book {
   if (!book.initial) throw new Error('Create the initial shares first.');
   const session = sessionFromInitial(engine, book.initial, 'fresh');
@@ -460,13 +461,58 @@ export function computerCheck(
   )
     throw new Error('Complete this share before checking it.');
   checksumWorksheet(engine, session.shares[index], false);
+  const checked = workshopFlow(book.flow, {
+    type: 'verification-completed',
+    index,
+    method: 'computer',
+  });
   return {
     ...book,
-    flow: workshopFlow(book.flow, {
-      type: 'verification-completed',
-      index,
-      method: 'computer',
-    }),
+    flow: advance
+      ? checked
+      : {
+          ...book.flow,
+          computerVerified: checked.computerVerified,
+        },
+  };
+}
+
+// Replaying a worksheet keeps the exact initial key and all other answers.
+// Navigation still requires the reset worksheet to be completed again.
+export function resetSection(book: Book, id: string): Book {
+  const checksum = id === 'checksum-A' || id === 'checksum-C';
+  const verification = /^verify-[ACD]$/.test(id);
+  const recovery = /^recover-(A,C|A,D|C,D)$/.test(id);
+  if (!checksum && !verification && id !== 'derive' && !recovery) return book;
+  const index = id.slice(-1) as ShareIndex;
+  let flow = { ...book.flow, notice: '', focus: null };
+  if (checksum)
+    flow = {
+      ...flow,
+      phase: 'checksum',
+      checksumIndex: index as 'A' | 'C',
+      checksums: { ...flow.checksums, [index]: false },
+      computerVerified: { ...flow.computerVerified, [index]: false, D: false },
+    };
+  else if (verification)
+    flow = {
+      ...flow,
+      phase: 'verify',
+      verifyIndex: index,
+      verified: { ...flow.verified, [index]: false },
+    };
+  else if (id === 'derive')
+    flow = {
+      ...flow,
+      phase: 'derive',
+      computerVerified: { ...flow.computerVerified, D: false },
+    };
+  else flow = { ...flow, phase: 'recover' };
+  return {
+    ...book,
+    example: false,
+    lessons: { ...book.lessons, [id]: emptyLesson() },
+    flow,
   };
 }
 

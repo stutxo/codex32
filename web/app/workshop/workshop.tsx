@@ -59,10 +59,10 @@ import {
   emptyLesson,
   prepareLesson,
   computerCheck,
+  resetSection,
   emptyWorkbooks,
   readWorkbooks,
   saveWorkbooks,
-  showExample,
   STORAGE_KEY,
   type Book,
 } from '@/lib/workbook';
@@ -192,6 +192,9 @@ export default function Workshop() {
         setEngine(value);
         try {
           const restored = readWorkbooks(value, window.localStorage);
+          // The worked-example switch was removed. Resume personal worksheets
+          // in their editable mode, including saves made with that switch on.
+          restored.books.fresh.example = false;
           if (window.location.hash === '#workbench') {
             const active = restored.books[restored.active];
             active.flow = workshopFlow(active.flow, {
@@ -376,7 +379,11 @@ export default function Workshop() {
       setError('The published example could not be verified.');
     }
   }
-  function finishAndCheck(index: 'A' | 'C' | 'D', action?: FlowAction) {
+  function finishAndCheck(
+    index: 'A' | 'C' | 'D',
+    action?: FlowAction,
+    advance = true,
+  ) {
     if (!engine) return;
     updateBook((current) => {
       try {
@@ -389,6 +396,7 @@ export default function Workshop() {
               }
             : current,
           index,
+          advance,
         );
       } catch {
         queueMicrotask(() =>
@@ -406,6 +414,7 @@ export default function Workshop() {
     onComplete: () => void,
   ) {
     if (!engine || !session || !exercises) return null;
+    const otherIndex = id === 'checksum-A' ? 'C' : 'A';
     return (
       <TutorialLesson
         key={session.shares.A + session.shares.C + id}
@@ -459,7 +468,23 @@ export default function Workshop() {
             };
           })
         }
-        onComplete={onComplete}
+        onComplete={() => {
+          if (id.startsWith('checksum-'))
+            finishAndCheck(id.slice(-1) as 'A' | 'C', undefined, false);
+          else if (id === 'derive') finishAndCheck('D', undefined, false);
+        }}
+        onContinue={onComplete}
+        continueLabel={
+          id.startsWith('checksum-')
+            ? 'Continue to share ' +
+              (flow.checksums[otherIndex] && shareChecked(flow, otherIndex)
+                ? 'D'
+                : otherIndex)
+            : id === 'derive'
+              ? 'Continue to reveal secret'
+              : 'Continue the tutorial'
+        }
+        onReset={() => updateBook((current) => resetSection(current, id))}
         onSkipPaper={
           id.startsWith('verify-')
             ? () => finishAndCheck(id.slice(7) as 'A' | 'C' | 'D')
@@ -550,19 +575,6 @@ export default function Workshop() {
           </p>
         )}
         <div className="workbook-tools">
-          <label className="example-switch">
-            <input
-              type="checkbox"
-              checked={book.example}
-              disabled={!session || phase === 'random'}
-              onChange={(event) =>
-                updateBook((current) =>
-                  showExample(current, event.target.checked),
-                )
-              }
-            />
-            Show worked example
-          </label>
           <output className="save-status">
             {saveStatus === 'Saved in this browser'
               ? 'Saved locally'
@@ -608,7 +620,7 @@ export default function Workshop() {
                     (!bothVerified || !derived || !shareChecked(flow, 'D')))
                 }
               >
-                <span>4.</span> Secret
+                <span>4.</span> Reveal secret
               </TabsTrigger>
             </TabsList>
             <TabsContent value="random" data-stage="random" keepMounted>

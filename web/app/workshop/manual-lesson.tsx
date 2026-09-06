@@ -43,6 +43,7 @@ export default function ManualLesson({
   progress,
   onChange,
   onComplete,
+  onContinue = onComplete,
   example,
   active,
   target = 'S',
@@ -53,6 +54,7 @@ export default function ManualLesson({
   progress: LessonProgress;
   onChange: (value: LessonProgress) => void;
   onComplete: () => void;
+  onContinue?: () => void;
   example: boolean;
   active: boolean;
   target?: 'D' | 'S';
@@ -581,7 +583,7 @@ export default function ManualLesson({
               <p className="completed-checksum">{exercise.checksum}</p>
             )}
             <code>{grouped(exercise.output)}</code>
-            <BookButton onClick={onComplete}>
+            <BookButton onClick={onContinue}>
               Continue <ArrowRight size={17} />
             </BookButton>
             <button className="text-button" onClick={() => visit(0)}>
