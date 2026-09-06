@@ -109,7 +109,10 @@ export default function Workshop() {
   function dispatchFlow(action: FlowAction) {
     updateBook((current) => ({
       ...current,
-      flow: workshopFlow(current.flow, action),
+      flow:
+        action.type === 'select-verification'
+          ? normalizeWorkshopFlow(workshopFlow(current.flow, action), derived)
+          : workshopFlow(current.flow, action),
     }));
   }
   function navigate(next: Phase) {
@@ -799,7 +802,9 @@ export default function Workshop() {
                         value={index}
                         disabled={
                           !book.example &&
-                          (index === 'D' ? !derived : !flow.checksums[index])
+                          (index === 'D'
+                            ? !bothVerified || !derived
+                            : !flow.checksums[index])
                         }
                       >
                         Share {index}

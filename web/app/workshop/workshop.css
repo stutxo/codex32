@@ -1905,3 +1905,56 @@
 .random-continue[data-ready='false'] {
   position: static;
 }
+
+.manual-dice .dice-track {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 20px minmax(
+      0,
+      1fr
+    ) max-content;
+}
+@media (max-width: 480px) {
+  .manual-dice .dice-track {
+    grid-template-columns: max-content minmax(0, 1fr) 20px minmax(0, 1fr);
+  }
+  .manual-dice .dice-track select {
+    grid-column: 2 / -1;
+    width: 100%;
+  }
+}
+
+.random-spread > section {
+  min-width: 0;
+}
+.random-spread .book-chapter-title > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.random-share-drafts > div > div {
+  flex-wrap: wrap;
+}
+.random-actions > button {
+  max-width: 100%;
+  white-space: normal;
+}
+@media (max-width: 780px) {
+  .random-spread {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workshop-shell .masthead {
+    flex-wrap: wrap;
+    padding-block: 12px;
+  }
+  .workshop-header-actions {
+    margin-left: auto;
+  }
+  .random-spread .running-head,
+  .dice-illumination {
+    flex-wrap: wrap;
+  }
+}
+
+.dice-character select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
