@@ -14,11 +14,15 @@ import {
   editLesson,
   normalizeAnswer,
   submitAnswer,
+  visitLesson,
   type Exercise,
   type LessonProgress,
 } from '@/lib/workbook';
 import Wheel, { WheelControls, type WheelKind } from './wheel';
-import PaperReference, { ShareHeader } from './paper-reference';
+import PaperReference, {
+  ShareHeader,
+  DerivationTable,
+} from './paper-reference';
 import {
   checkColumn,
   columnEntry,
@@ -67,9 +71,10 @@ export default function ManualLesson({
     step.kind === 'recovery' || step.kind === 'translation'
       ? step.kind
       : 'addition';
-  const computational = ['addition', 'translation', 'recovery'].includes(
-    step.kind,
-  );
+  const derivationFactor = step.kind === 'recovery' && target === 'D';
+  const computational =
+    !derivationFactor &&
+    ['addition', 'translation', 'recovery'].includes(step.kind);
   const guided = step.kind === 'addition' && step.answer.length > 1;
   const guide = stepGuide(step, Boolean(exercise.checksum), target);
   const left = step.left?.[column];
@@ -140,7 +145,11 @@ export default function ManualLesson({
           .flatMap((character, i) => (character !== entered[i] ? [i + 1] : []));
         setError(
           step.answer.length === 1
-            ? 'That character does not match. Check the wheel setting and try again.'
+            ? derivationFactor
+              ? 'Read the factor for share ' +
+                step.left +
+                ' in column D. Enter its alphabet equivalent.'
+              : 'That character does not match. Check the wheel setting and try again.'
             : 'Check column' +
                 (columns.length === 1 ? ' ' : 's ') +
                 columns.join(', ') +
@@ -155,11 +164,8 @@ export default function ManualLesson({
   }
   function visit(next: number) {
     setError('');
-    patch(
-      example
-        ? { exampleCursor: next, column: 0 }
-        : { cursor: next, column: 0 },
-    );
+    if (example) patch({ exampleCursor: next, column: 0 });
+    else onChange(visitLesson(exercise, { ...progress, column: 0 }, next));
   }
   const completedCells = exercise.checksum
     ? []
@@ -179,11 +185,15 @@ export default function ManualLesson({
             {exercise.title} · {example ? 'WORKED EXAMPLE' : 'YOUR WORKBOOK'}
           </span>
           <a
-            href={wheelData.sources.paper + '#page=' + guide.page}
+            href={
+              wheelData.sources.paper +
+              '#page=' +
+              (exercise.verification ? 21 : guide.page)
+            }
             target="_blank"
             rel="noreferrer"
           >
-            Book p. {guide.printedPage} ↗
+            Book p. {exercise.verification ? '14' : guide.printedPage} ↗
           </a>
         </div>
         {!done && (
@@ -222,8 +232,12 @@ export default function ManualLesson({
               onPrimary={(primary) => patch({ primary })}
               onOther={(other) => patch({ other })}
               controls={false}
+              factorSide={view.factorSide}
+              onFactorSide={(factorSide) => patch({ factorSide })}
             />
           </>
+        ) : derivationFactor && !done ? (
+          <DerivationTable />
         ) : !done ? (
           <PaperReference step={step} />
         ) : (
@@ -232,7 +246,7 @@ export default function ManualLesson({
             <p>
               You can review every entry using the controls on the facing page.
             </p>
-            {exercise.checksum && (
+            {exercise.checksum && !exercise.verification && (
               <p>
                 The book also asks you to verify a separate copy of your share.{' '}
                 <a
@@ -315,13 +329,17 @@ export default function ManualLesson({
             <CheckCircle2 size={28} />
             <h2>
               {exercise.checksum
-                ? 'Checksum complete.'
+                ? exercise.verification
+                  ? 'Checksum verified.'
+                  : 'Checksum calculated.'
                 : target === 'D'
                   ? 'Share D complete.'
                   : 'Secret recovered.'}
             </h2>
             <p>
-              Every entry has been checked. This is your completed{' '}
+              {exercise.verification
+                ? 'Your downward calculation ends at SECRETSHARE32, as required. This is your verified'
+                : 'Every entry has been checked. This is your completed'}{' '}
               {exercise.checksum || target === 'D' ? 'share' : 'secret'}.
             </p>
             {exercise.checksum && (

@@ -1,6 +1,8 @@
 import type { Engine } from './practice.ts';
 import {
   alphabet,
+  emptyDiceEntry,
+  type DiceEntry,
   checksumWorksheet,
   sessionFromInitial,
   translationLesson,
@@ -8,7 +10,12 @@ import {
   type DiceResult,
   type WorkshopSession,
 } from './workshop.ts';
-import { initialFlow, type Phase, type WorkshopFlow } from './workshop-flow.ts';
+import {
+  normalizeWorkshopFlow,
+  initialFlow,
+  type Phase,
+  type WorkshopFlow,
+} from './workshop-flow.ts';
 
 export type ExerciseStep = {
   id: string;
@@ -28,10 +35,15 @@ export type Exercise = {
   steps: ExerciseStep[];
   output: string;
   checksum?: string;
+  verification?: boolean;
 };
 
-export function checksumExercise(engine: Engine, encoded: string): Exercise {
-  const sheet = checksumWorksheet(engine, encoded);
+export function checksumExercise(
+  engine: Engine,
+  encoded: string,
+  verification = false,
+): Exercise {
+  const sheet = checksumWorksheet(engine, encoded, !verification);
   const steps: ExerciseStep[] = [
     {
       id: 'endpoint',
@@ -54,6 +66,17 @@ export function checksumExercise(engine: Engine, encoded: string): Exercise {
       direction: 'down',
     },
   ];
+  if (verification)
+    steps[0] = {
+      id: 'verify-copy',
+      title: 'Recopy share ' + encoded[8] + ' for verification.',
+      instruction:
+        'Start a fresh checksum worksheet. Copy the complete share below, including the 13 checksum characters you calculated. Spaces are optional.',
+      kind: 'copy',
+      left: encoded,
+      answer: encoded,
+      direction: 'down',
+    };
   sheet.forward.forEach((row, i) => {
     const prefix = 'down-' + i;
     steps.push(
@@ -133,7 +156,11 @@ export function checksumExercise(engine: Engine, encoded: string): Exercise {
     );
   });
   return {
-    title: 'Share ' + encoded[8] + ' · checksum',
+    title:
+      'Share ' +
+      encoded[8] +
+      (verification ? ' · verify checksum' : ' · checksum'),
+    verification,
     steps,
     output: sheet.output,
     checksum: sheet.checksum,
@@ -151,11 +178,15 @@ export function shareExercise(
     id: 'factor-' + index,
     title: 'Find the factor for share ' + index + '.',
     instruction:
-      'Point the recovery wheel handle at ' +
-      index +
-      ', then read the symbol at ' +
-      pair[1 - i] +
-      '. Enter the alphabet character shown beside that symbol.',
+      target === 'D'
+        ? 'Use the derivation table: read the factor for share ' +
+          index +
+          ' in column D, for two initial shares (k = 2). Enter its alphabet equivalent.'
+        : 'Point the recovery wheel handle at ' +
+          index +
+          ', then read the symbol at ' +
+          pair[1 - i] +
+          '. Enter the alphabet character shown beside that symbol.',
     kind: 'recovery',
     left: index,
     right: pair[1 - i],
@@ -174,7 +205,7 @@ export function shareExercise(
         instruction:
           'Set the translation factor you found for ' +
           pair[row] +
-          '. Read the outer character beside the given inner character and enter it below.',
+          '. Set its symbol in the handle window on the fusion side, then turn over to the translation side. Read the outer character at the arrow beside the given inner character. Keep this factor for the entire row.',
         kind: 'translation',
         left: lesson.weights[row],
         right: column.inputs[row],
@@ -195,14 +226,23 @@ export function shareExercise(
       position: column.position,
     });
   });
+  // The paper worksheet translates one complete row at a fixed setting,
+  // then the other row, and only then adds the translated rows.
+  const ordered = [
+    ...steps.slice(0, 2),
+    ...steps.filter((step) => step.id.endsWith('-translate-0')),
+    ...steps.filter((step) => step.id.endsWith('-translate-1')),
+    ...steps.filter((step) => step.kind === 'addition'),
+  ];
   return {
     title: pair.join(' + ') + ' → ' + target,
-    steps,
+    steps: ordered,
     output: lesson.output,
   };
 }
 
 export type WheelProgress = {
+  factorSide: boolean;
   column: number;
   primary: string;
   other: string;
@@ -211,6 +251,7 @@ export type WheelProgress = {
   tableOpen: boolean;
 };
 const emptyWheel = (): WheelProgress => ({
+  factorSide: true,
   column: 0,
   primary: 'Q',
   other: 'Q',
@@ -218,7 +259,10 @@ const emptyWheel = (): WheelProgress => ({
   tableSecond: 'Q',
   tableOpen: false,
 });
+export type ParkedStep = { draft?: string; wheel?: WheelProgress };
 export type LessonProgress = WheelProgress & {
+  deferredAnswers: Record<string, string>;
+  parked: Record<string, ParkedStep>;
   answers: string[];
   draft: string;
   cursor: number;
@@ -226,6 +270,8 @@ export type LessonProgress = WheelProgress & {
   exampleWheel: WheelProgress;
 };
 export const emptyLesson = (): LessonProgress => ({
+  deferredAnswers: {},
+  parked: {},
   ...emptyWheel(),
   answers: [],
   draft: '',
@@ -241,6 +287,7 @@ export function editLesson(
   if (!example) return { ...progress, ...change };
   const view = { ...progress.exampleWheel };
   for (const name of [
+    'factorSide',
     'column',
     'primary',
     'other',
@@ -274,16 +321,63 @@ export function submitAnswer(exercise: Exercise, progress: LessonProgress) {
     return { correct: false, progress, complete: false };
   }
   const answers = [...progress.answers, answer];
+  const deferredAnswers = { ...progress.deferredAnswers };
+  while (answers.length < exercise.steps.length) {
+    const next = exercise.steps[answers.length];
+    if (deferredAnswers[next.id] !== next.answer) break;
+    answers.push(next.answer);
+    delete deferredAnswers[next.id];
+  }
+  const next = exercise.steps[answers.length];
+  const nextProgress: LessonProgress = {
+    ...emptyLesson(),
+    answers,
+    deferredAnswers,
+    parked: { ...progress.parked },
+    cursor: answers.length,
+    factorSide:
+      next?.kind === 'translation' &&
+      step.kind === 'translation' &&
+      next.left === step.left
+        ? progress.factorSide
+        : true,
+    primary:
+      next?.kind === 'translation' &&
+      step.kind === 'translation' &&
+      next.left === step.left
+        ? progress.primary
+        : 'Q',
+    exampleCursor: progress.exampleCursor,
+    exampleWheel: progress.exampleWheel,
+  };
   return {
     correct: true,
     complete: answers.length === exercise.steps.length,
-    progress: {
-      ...emptyLesson(),
-      answers,
-      cursor: answers.length,
-      exampleCursor: progress.exampleCursor,
-      exampleWheel: progress.exampleWheel,
-    },
+    progress: visitLesson(exercise, nextProgress, answers.length),
+  };
+}
+
+// Previously entered work can move later when following the printed row order.
+// Restore it when reached, without turning an unsubmitted draft into credit.
+export function visitLesson(
+  exercise: Exercise,
+  progress: LessonProgress,
+  cursor: number,
+): LessonProgress {
+  const step = exercise.steps[cursor];
+  const parked = { ...progress.parked };
+  const saved = step ? parked[step.id] : undefined;
+  const current = cursor === progress.answers.length;
+  if (step && saved) {
+    if (current || saved.draft === undefined) delete parked[step.id];
+    else parked[step.id] = { draft: saved.draft };
+  }
+  return {
+    ...progress,
+    ...saved?.wheel,
+    parked,
+    cursor,
+    draft: current && saved?.draft !== undefined ? saved.draft : progress.draft,
   };
 }
 
@@ -291,11 +385,13 @@ export type Book = {
   initial: [string, string] | null;
   draft: string;
   dice: DiceResult | null;
+  diceEntry: DiceEntry;
   flow: WorkshopFlow;
   pair: 'A,C' | 'A,D' | 'C,D';
   example: boolean;
   examplePhase: Phase;
   exampleChecksumIndex: 'A' | 'C';
+  exampleVerifyIndex: 'A' | 'C' | 'D';
   examplePair: 'A,C' | 'A,D' | 'C,D';
   lessons: Record<string, LessonProgress>;
 };
@@ -303,11 +399,17 @@ export const emptyBook = (): Book => ({
   initial: null,
   draft: '',
   dice: null,
-  flow: { ...initialFlow, checksums: { A: false, C: false } },
+  diceEntry: emptyDiceEntry(),
+  flow: {
+    ...initialFlow,
+    checksums: { A: false, C: false },
+    verified: { A: false, C: false, D: false },
+  },
   pair: 'C,D',
   example: false,
   examplePhase: 'checksum',
   exampleChecksumIndex: 'A',
+  exampleVerifyIndex: 'A',
   examplePair: 'C,D',
   lessons: {},
 });
@@ -316,6 +418,9 @@ export function showExample(book: Book, visible: boolean): Book {
     ...book,
     example: visible,
     examplePhase: visible ? book.flow.phase : book.examplePhase,
+    exampleVerifyIndex: visible
+      ? book.flow.verifyIndex
+      : book.exampleVerifyIndex,
     exampleChecksumIndex: visible
       ? book.flow.checksumIndex
       : book.exampleChecksumIndex,
@@ -328,6 +433,7 @@ export function showExample(book: Book, visible: boolean): Book {
               ...lesson,
               exampleCursor: lesson.cursor,
               exampleWheel: {
+                factorSide: lesson.factorSide,
                 column: lesson.column,
                 primary: lesson.primary,
                 other: lesson.other,
@@ -343,18 +449,19 @@ export function showExample(book: Book, visible: boolean): Book {
 }
 export const STORAGE_KEY = 'codex32.practice-workbooks.v1';
 export type WorkbookSave = {
-  version: 1;
+  version: 2;
   active: 'fresh' | 'published';
   books: { fresh: Book; published: Book };
 };
 export const emptyWorkbooks = (): WorkbookSave => ({
-  version: 1,
+  version: 2,
   active: 'fresh',
   books: { fresh: emptyBook(), published: emptyBook() },
 });
 const phases: Phase[] = [
   'random',
   'checksum',
+  'verify',
   'derive',
   'recover',
   'workbench',
@@ -377,6 +484,7 @@ const character = (value: unknown) =>
 function restoreWheel(value: unknown): WheelProgress {
   const raw = object(value);
   return {
+    factorSide: raw.factorSide !== false,
     column: integer(raw.column, 12),
     primary: character(raw.primary),
     other: character(raw.other),
@@ -430,7 +538,23 @@ export function restoreLesson(
       break;
     answers.push(submitted[i]);
   }
+  const deferredAnswers: Record<string, string> = {};
+  const parked: Record<string, ParkedStep> = {};
+  for (const step of exercise.steps) {
+    if (object(raw.deferredAnswers)[step.id] === step.answer)
+      deferredAnswers[step.id] = step.answer;
+    const entry = object(object(raw.parked)[step.id]);
+    if (entry.draft !== undefined || entry.wheel !== undefined)
+      parked[step.id] = {
+        ...(entry.draft !== undefined ? { draft: text(entry.draft, 64) } : {}),
+        ...(entry.wheel !== undefined
+          ? { wheel: restoreWheel(entry.wheel) }
+          : {}),
+      };
+  }
   return {
+    deferredAnswers,
+    parked,
     ...restoreWheel(raw),
     exampleWheel: restoreWheel(raw.exampleWheel),
     answers,
@@ -443,10 +567,66 @@ export function restoreLesson(
   };
 }
 
+export function migrateLegacyLesson(
+  exercise: Exercise,
+  value: unknown,
+): LessonProgress {
+  if (!exercise.steps.some((step) => step.id.startsWith('factor-')))
+    return restoreLesson(exercise, value);
+  const byId = new Map(exercise.steps.map((step) => [step.id, step]));
+  const oldSteps = exercise.steps.slice(0, 2);
+  for (let i = 0; i < 45; i++) {
+    for (const suffix of ['translate-0', 'translate-1', 'add'])
+      oldSteps.push(byId.get('column-' + i + '-' + suffix)!);
+  }
+  const old = restoreLesson({ ...exercise, steps: oldSteps }, value);
+  const accepted = Object.fromEntries(
+    old.answers.map((answer, i) => [oldSteps[i].id, answer]),
+  );
+  const result = emptyLesson();
+  for (const step of exercise.steps) {
+    if (accepted[step.id] !== step.answer) break;
+    result.answers.push(step.answer);
+    delete accepted[step.id];
+  }
+  result.deferredAnswers = accepted;
+  const raw = object(value);
+  if (Array.isArray(raw.answers) && old.answers.length < raw.answers.length) {
+    const later = oldSteps[raw.answers.length];
+    if (later) result.parked[later.id] = { draft: text(raw.draft, 64) };
+  }
+  const unfinished = oldSteps[old.answers.length];
+  const viewed = oldSteps[old.cursor];
+  if (unfinished) result.parked[unfinished.id] = { draft: old.draft };
+  if (viewed)
+    result.parked[viewed.id] = {
+      ...result.parked[viewed.id],
+      wheel: restoreWheel(old),
+    };
+  result.exampleCursor = Math.max(
+    0,
+    exercise.steps.findIndex(
+      (step) => step.id === oldSteps[old.exampleCursor]?.id,
+    ),
+  );
+  result.exampleWheel = old.exampleWheel;
+  const mappedCursor = exercise.steps.findIndex(
+    (step) => step.id === viewed?.id,
+  );
+  result.cursor =
+    mappedCursor >= 0 && mappedCursor < result.answers.length
+      ? mappedCursor
+      : result.answers.length;
+  // Keep the unfinished draft in progress even if the learner was reviewing.
+  const next = visitLesson(exercise, result, result.answers.length);
+  return visitLesson(exercise, next, result.cursor);
+}
+
 export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
   if (source.length > 200_000) throw new Error('Saved workbook is too large.');
   const raw = object(JSON.parse(source));
-  if (raw.version !== 1) throw new Error('Unsupported saved workbook version.');
+  if (raw.version !== 1 && raw.version !== 2)
+    throw new Error('Unsupported saved workbook version.');
   if (
     !isObject(raw.books) ||
     !isObject(raw.books.fresh) ||
@@ -474,6 +654,34 @@ export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
     }
     book.draft = draft;
     book.dice = restoreDice(saved.dice);
+    const diceEntry = object(saved.diceEntry);
+    book.diceEntry = {
+      bits: Array.from({ length: 5 }, (_, i) => {
+        const value = Array.isArray(diceEntry.bits) ? diceEntry.bits[i] : '';
+        return value === '0' || value === '1' ? value : '';
+      }),
+      character:
+        typeof diceEntry.character === 'string' &&
+        alphabet.includes(diceEntry.character) &&
+        diceEntry.character.length === 1
+          ? diceEntry.character
+          : '',
+      recorded: Boolean(book.dice) && diceEntry.recorded === true,
+    };
+    if (book.dice && saved.diceEntry === undefined)
+      book.diceEntry = {
+        bits: book.dice.bits.split(''),
+        character: book.dice.character,
+        recorded: true,
+      };
+    if (
+      book.dice &&
+      book.diceEntry.recorded &&
+      (book.diceEntry.bits.join('') !== book.dice.bits ||
+        book.diceEntry.character !== book.dice.character ||
+        book.draft.at(-1) !== book.dice.character)
+    )
+      throw new Error('Invalid saved recorded dice.');
     book.example = saved.example === true;
     book.examplePhase = phases.includes(saved.examplePhase as Phase)
       ? (saved.examplePhase as Phase)
@@ -487,11 +695,23 @@ export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
       ? (saved.examplePair as (typeof pairs)[number])
       : book.pair;
     book.exampleChecksumIndex = saved.exampleChecksumIndex === 'C' ? 'C' : 'A';
+    book.exampleVerifyIndex =
+      saved.exampleVerifyIndex === 'D'
+        ? 'D'
+        : saved.exampleVerifyIndex === 'C'
+          ? 'C'
+          : 'A';
     const savedFlow = object(saved.flow);
     book.flow.phase = phases.includes(savedFlow.phase as Phase)
       ? (savedFlow.phase as Phase)
       : 'random';
     book.flow.checksumIndex = savedFlow.checksumIndex === 'C' ? 'C' : 'A';
+    book.flow.verifyIndex =
+      savedFlow.verifyIndex === 'D'
+        ? 'D'
+        : savedFlow.verifyIndex === 'C'
+          ? 'C'
+          : 'A';
     if (saved.initial !== null && saved.initial !== undefined) {
       if (
         !Array.isArray(saved.initial) ||
@@ -511,6 +731,9 @@ export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
       const exercises: Record<string, Exercise> = {
         'checksum-A': checksumExercise(engine, session.shares.A),
         'checksum-C': checksumExercise(engine, session.shares.C),
+        'verify-A': checksumExercise(engine, session.shares.A, true),
+        'verify-C': checksumExercise(engine, session.shares.C, true),
+        'verify-D': checksumExercise(engine, session.shares.D, true),
         derive: shareExercise(engine, session, ['A', 'C'], 'D'),
       };
       for (const pair of pairs) {
@@ -523,25 +746,23 @@ export function restoreWorkbooks(engine: Engine, source: string): WorkbookSave {
       }
       book.initial = [session.shares.A, session.shares.C];
       for (const [id, exercise] of Object.entries(exercises)) {
-        book.lessons[id] = restoreLesson(exercise, object(saved.lessons)[id]);
+        book.lessons[id] = (
+          raw.version === 1 ? migrateLegacyLesson : restoreLesson
+        )(exercise, object(saved.lessons)[id]);
       }
       for (const index of ['A', 'C'] as const) {
         const id = 'checksum-' + index;
         book.flow.checksums[index] =
           book.lessons[id].answers.length === exercises[id].steps.length;
       }
-      const both = book.flow.checksums.A && book.flow.checksums.C;
+      for (const index of ['A', 'C', 'D'] as const) {
+        const id = 'verify-' + index;
+        book.flow.verified[index] =
+          book.lessons[id].answers.length === exercises[id].steps.length;
+      }
       const derived =
         book.lessons.derive.answers.length === exercises.derive.steps.length;
-      if (
-        (book.flow.phase === 'derive' || book.flow.phase === 'recover') &&
-        !both
-      ) {
-        book.flow.phase = 'checksum';
-        book.flow.checksumIndex = book.flow.checksums.A ? 'C' : 'A';
-      } else if (book.flow.phase === 'recover' && !derived) {
-        book.flow.phase = 'derive';
-      }
+      book.flow = normalizeWorkshopFlow(book.flow, derived);
     } else {
       book.flow.phase =
         book.flow.phase === 'workbench' ? 'workbench' : 'random';

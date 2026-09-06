@@ -79,6 +79,14 @@
       "height": 936,
       "bytes": 382631,
       "sha256": "62e2688eff583b32881b9fd20b0b2a824134c565d8df1c184ae3c1d9e9e90375"
+    },
+    {
+      "file": "dice-tree.svg",
+      "width": 430,
+      "height": 327,
+      "bytes": 46369,
+      "sha256": "d8dabfad0889bd6a331b3b06d77139944e4f0b84ea06e3492627b29e2c294277",
+      "source": "Published color PDF page 18 (printed page 11); original vector tree and glyphs, rotated upright"
     }
   ]
 }

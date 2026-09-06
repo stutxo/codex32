@@ -1074,16 +1074,16 @@
   padding-block: 16px;
 }
 .codex-title {
-  font-family: Georgia, serif;
-  font-size: clamp(3rem, 5vw, 5rem);
+  font-family: 'Times New Roman', Times, serif;
+  font-size: clamp(2.5rem, 4vw, 3.5rem);
   line-height: 1;
-  font-weight: 400;
-  letter-spacing: -0.055em;
-  color: var(--red);
+  font-weight: bold;
+  letter-spacing: normal;
+  color: #171711;
+  margin: 0;
 }
-.codex-title span {
-  font-size: 0.8em;
-  letter-spacing: -0.075em;
+.codex-title a {
+  text-decoration: none;
 }
 .workbook-tools {
   display: flex;
@@ -1740,4 +1740,168 @@
 .guided-spread .operand-cells .unknown-operand {
   background: #f1d6dc;
   color: #873146;
+}
+
+/* Printed paper layers: all ink is fixed to one of the two discs. */
+.addition-printed-results text,
+.addition-window-label text {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  fill: #111;
+}
+.addition-printed-results text {
+  text-anchor: middle;
+}
+.addition-outer-letter {
+  font:
+    18px 'Courier New',
+    monospace;
+  fill: #111;
+  text-anchor: middle;
+}
+.addition-top-disc,
+.ring-top-disc {
+  cursor: grab;
+}
+.addition-window-label,
+.addition-window,
+.ring-printed-position {
+  cursor: pointer;
+}
+.ring-printed-letter {
+  font:
+    18px 'Courier New',
+    monospace;
+  fill: #111;
+  text-anchor: middle;
+}
+.ring-zero-reminder {
+  font:
+    20px 'Courier New',
+    monospace;
+  fill: #111;
+  text-anchor: middle;
+}
+.wheel-flip {
+  display: flex;
+  margin: 12px auto;
+  min-height: 44px;
+}
+
+.paper-factor-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 24px;
+  font-family: 'Courier New', monospace;
+}
+.paper-factor-table th,
+.paper-factor-table td {
+  border: 1px solid var(--border);
+  padding: 14px 8px;
+  text-align: center;
+}
+.paper-factor-table td {
+  font-size: 2rem;
+}
+.verification-copy {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-block: 20px;
+  font-size: 1.15rem;
+  letter-spacing: 0.1em;
+}
+
+.dice-track select {
+  width: 105px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--foreground);
+  padding: 5px;
+  font-size: 0.875rem;
+}
+.dice-tree {
+  position: relative;
+  margin-block: 18px;
+  background: #fffdf5;
+}
+.dice-tree > img {
+  width: 100%;
+  height: auto;
+}
+.dice-tree > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.dice-tree path {
+  stroke: #a32f39;
+  stroke-width: 2;
+  fill: none;
+  opacity: 0.8;
+}
+.dice-tree-text dl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+.dice-tree-text dl div {
+  display: flex;
+  justify-content: space-around;
+  border-bottom: 1px solid var(--border);
+}
+.dice-character {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+}
+.dice-character select {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  min-height: 44px;
+  padding: 8px;
+}
+@media (max-width: 480px) {
+  .dice-track {
+    gap: 4px;
+  }
+  .dice-track .die {
+    font-size: 2rem;
+  }
+  .dice-track select {
+    width: 90px;
+  }
+  .dice-tree-text dl {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .workshop-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.paper-magnifier {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 10px 0;
+}
+.paper-magnifier figcaption {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 1rem;
+}
+.paper-magnifier svg {
+  width: 132px;
+  height: 80px;
+  border: 1px solid var(--border);
+  background: #fffdf5;
+  overflow: hidden;
+}
+
+.random-continue[data-ready='false'] {
+  position: static;
 }

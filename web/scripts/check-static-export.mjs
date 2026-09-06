@@ -63,7 +63,7 @@ for (const file of files) {
   } else if (file.endsWith('.js')) {
     // Includes the lazy-loaded WASM URL, which is absent from prerendered HTML.
     for (const match of readFileSync(file, 'utf8').matchAll(
-      /["'](\/[^"'\s]+\.(?:wasm|png|css|js))["']/g,
+      /["'](\/[^"'\s]+\.(?:wasm|png|svg|css|js))["']/g,
     )) {
       checkReference(match[1], page);
     }
@@ -82,6 +82,7 @@ assert.equal(
     .length,
   11,
 );
+assert.ok(existsSync(join(output, 'art/dice-tree.svg')), 'Original dice tree must be exported');
 console.log(
-  `Static export verified at ${base || '/'}: 3 routes, ${references} local references, 11 artwork assets, tested WASM.`,
+  `Static export verified at ${base || '/'}: 3 routes, ${references} local references, 12 artwork assets, tested WASM.`,
 );

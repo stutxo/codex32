@@ -27,23 +27,42 @@ available for transcription and editing. Copying, table lookup, and shifting sho
 the corresponding paper reference; unknown cells use the book's pink color and `?`.
 The header explanation separates the fixed prefix, threshold, identifier, share
 index, and dice characters. This presentation preserves all existing task IDs,
-answers, and saved progress. A middle dot in a draft denotes an empty input cell,
+answers, and saved progress through a versioned migration. A middle dot in a draft denotes an empty input cell,
 distinct from `?`, and cannot pass an answer check.
 
 The dice exercise creates disposable fresh test
 keys from browser cryptographic randomness: two independent 26-character initial
 shares determine a 128-bit seed, and every pair of the resulting A/C/D shares must
 recover the same encoded S before the session is accepted.
-The persistent “Create my test backup” action preserves any rolled characters and
-securely fills the rest. Completing each worksheet advances through checksum A,
-checksum C, share D, and recovery; earlier stages remain available for review.
-The Recovery ring's default target is S; the D lesson explicitly relabels it. The
-Addition wheel uses a digital window layout for the paper's XOR lookup table.
+The learner compares five dice pairs and follows the original printed decision tree
+before recording each character. Creation requires all 52 recorded characters;
+“Fill remaining” is an explicit shortcut. This exercise fixes k=2, three shares and
+the identifier PLAY. Each initial share's checksum generation is followed by a
+separate 50-entry downward verification worksheet. D is derived and independently
+verified before recovery; earlier worksheets remain available for review.
+
+D's factors come from the printed derivation table (A: Π/V, C: ρ/D). Each complete
+share is translated before adding the two rows, following §III.1.B. Module 1's
+alternate Share Booklet is not used: revision 2303-1 has the row error reported in
+[issue #77](https://github.com/BlockstreamResearch/codex32/issues/77), and omits S as
+an input row. S remains valid data and is never excluded from random generation.
+
+The addition volvelle has 1,024 fixed printed glyphs under a rotating dragon disc
+with the original 32 spiral windows. Art, labels, windows and pointer rotate as
+one sheet. An enlarged window repeats the same SVG layers for small screens.
+Recovery uses the fixed S ring and a rotating printed symbol disc. Translation
+and Fusion are opposite faces of one instrument: flipping preserves the factor
+and reverses the apparent rotation. Q has no factor slot; input Q follows the
+printed Q ↔ Q rule. Alphabet ink uses Courier, as in the source.
 
 Practice work is saved automatically in this browser's localStorage, under
 `codex32.practice-workbooks.v1`. It includes initial A/C shares, unfinished dice
-characters and the last roll, submitted and draft worksheet answers, wheel
-settings, and the current step. Fresh and published workbooks have independent
+characters, unfinished dice comparisons, the last roll, submitted and draft
+worksheet answers, wheel settings (including the flipped face), and the current step.
+The storage key is retained; the format is version 2. Version-1 interleaved lessons
+are migrated by stable step ID: later checked answers and unfinished drafts are
+parked until their turn in the printed row order. New verification exercises
+receive no credit from old generation answers. Fresh and published workbooks have independent
 progress. Reloading validates the initial shares and accepted answers and recomputes
 derived outputs with WASM. Unreadable saves are preserved until the learner chooses
 to clear them. A failed save is reported on the page. “Clear saved work” erases
@@ -75,7 +94,7 @@ button component with explicit native appearance and readable enabled/disabled
 colors. Regressions check its rendered contrast without a stylesheet and enforce
 its use throughout the workshop and workbench.
 
-The 43 automated tests also check all 1,024 additions and multiplications,
+The 52 automated tests also check all 1,024 additions and multiplications,
 physical alignment on both multiplication faces, 29,760 pair/target weight cases,
 all cells in four published recovery/derivation lessons, eight independent checksum
 traces, fresh sessions, malformed WASM arguments, unbiased sampling, rejected dice
@@ -86,6 +105,9 @@ and progress retained across workbench visits and review/reset actions. Manual
 workbook coverage verifies every required entry, rejects wrong answers and skipped
 steps, isolates example controls, restores partial drafts and wheel settings,
 revalidates completed steps, and preserves unreadable saves and storage failures.
+Physical-layer tests check all 1,024 addition-window coordinates against WASM.
+New tests cover manual dice recording, phase prerequisites, separate verification,
+booklet-issue vectors, and migration with deferred answers and unsubmitted drafts.
 Guided-entry tests check per-column progression, correction without losing later
 entries, empty and unknown cells, older full-row drafts, and book-page references.
 
@@ -114,7 +136,8 @@ with A4/Letter-friendly margins.
 An optional `document.modelContext` tool exposes only public practice recovery.
 Its pure contract has automated tests. No supported browser WebMCP context was
 available to verify registration and live page state. Chromium verification of
-the root-domain export exercises the complete manual A/C checksum → D → S journey,
+the root-domain export exercises dice → generate/verify A → generate/verify C →
+derive/verify D → recover S,
 all three recovered address comparisons, draft and dice restoration after reload,
 independent examples, unreadable-save protection, and the existing recovery
 workbench. Layout checks cover widths from 375 to 1600 pixels, with readable
@@ -169,8 +192,8 @@ See GitHub's [custom-domain documentation](https://docs.github.com/en/pages/conf
 Original artwork is reproduced directly from the [Codex32 book](https://secretcodex32.com/docs/2023-03-07--color.pdf)
 and the [new-complete source branch](https://github.com/apoelstra/codex32/tree/new-complete):
 the four wheel illustrations, book cover and wizard detail, red vine border, and
-illuminated initials. The wheel centers rotate with the interactive discs; calculated
-readouts remain outside the artwork. The paper scales are digital adaptations.
+illuminated initials, and the original dice decision tree. The paper layers follow
+the original geometry, with additional selection highlights and accessible controls.
 
 Cover/volvelle artwork: Micaela Paez. Illuminated letters/inline artwork: M. Lutfi’ As’ad.
 Edited and produced by Arri Isak Beck. The book and branch MIT notices are preserved

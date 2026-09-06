@@ -28,6 +28,8 @@ import { loadEngine } from '@/lib/engine';
 import { type Engine } from '@/lib/practice';
 import {
   completePracticeSession,
+  emptyDiceEntry,
+  recordDiceCharacter,
   publishedSession,
   sessionFromInitial,
   randomCharacters,
@@ -38,9 +40,15 @@ import {
   type WorkshopSession,
 } from '@/lib/workshop';
 import ManualLesson from './manual-lesson';
+import DiceWorksheet from './dice-worksheet';
 import './workshop.css';
 
-import { workshopFlow, type Phase, type FlowAction } from '@/lib/workshop-flow';
+import {
+  workshopFlow,
+  normalizeWorkshopFlow,
+  type Phase,
+  type FlowAction,
+} from '@/lib/workshop-flow';
 import {
   checksumExercise,
   shareExercise,
@@ -53,7 +61,6 @@ import {
   STORAGE_KEY,
   type Book,
 } from '@/lib/workbook';
-const glyphs = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 export default function Workshop() {
   const [engine, setEngine] = useState<Engine | null>(null);
@@ -75,14 +82,21 @@ export default function Workshop() {
   const checksumIndex = book.example
     ? book.exampleChecksumIndex
     : flow.checksumIndex;
+  const verifyIndex = book.example ? book.exampleVerifyIndex : flow.verifyIndex;
   const pairText = book.example ? book.examplePair : book.pair;
   const draft = book.draft;
   const workshopElement = useRef<HTMLElement>(null);
   const dice = book.dice;
   function setDice(value: DiceResult | null) {
-    updateBook((current) => ({ ...current, dice: value }));
+    setDiceError('');
+    updateBook((current) => ({
+      ...current,
+      dice: value,
+      diceEntry: emptyDiceEntry(),
+    }));
   }
   const [error, setError] = useState('');
+  const [diceError, setDiceError] = useState('');
   function updateBook(change: (current: Book) => Book) {
     setWorkbooks((current) => ({
       ...current,
@@ -107,7 +121,14 @@ export default function Workshop() {
       }));
     else if (book.example && session)
       updateBook((current) => ({ ...current, examplePhase: next }));
-    else dispatchFlow({ type: 'navigate', phase: next });
+    else
+      updateBook((current) => ({
+        ...current,
+        flow: normalizeWorkshopFlow(
+          workshopFlow(current.flow, { type: 'navigate', phase: next }),
+          derived,
+        ),
+      }));
   }
   function setDraft(value: string | ((previous: string) => string)) {
     updateBook((current) => ({
@@ -127,6 +148,9 @@ export default function Workshop() {
     return {
       'checksum-A': checksumExercise(engine, session.shares.A),
       'checksum-C': checksumExercise(engine, session.shares.C),
+      'verify-A': checksumExercise(engine, session.shares.A, true),
+      'verify-C': checksumExercise(engine, session.shares.C, true),
+      'verify-D': checksumExercise(engine, session.shares.D, true),
       derive: shareExercise(engine, session, ['A', 'C'], 'D'),
       ['recover-' + pairText]: shareExercise(
         engine,
@@ -137,6 +161,7 @@ export default function Workshop() {
     };
   }, [engine, session, pairText]);
   const bothChecksums = flow.checksums.A && flow.checksums.C;
+  const bothVerified = bothChecksums && flow.verified.A && flow.verified.C;
   const derived = Boolean(
     exercises &&
     book.lessons.derive?.answers.length === exercises.derive.steps.length,
@@ -213,7 +238,7 @@ export default function Workshop() {
     }));
   }
   function fresh() {
-    if (!engine) return;
+    if (!engine || draft.length !== 52) return;
     if (workbooks.active === 'published') return;
     if (
       session &&
@@ -237,11 +262,19 @@ export default function Workshop() {
     }
   }
   function roll() {
-    if (draft.length >= 52) return;
+    if (draft.length >= 52 || (dice && !book.diceEntry.recorded)) return;
     try {
       const next = rollDiceCharacter();
-      setDraft((value) => value + next.character);
       setDice(next);
+      setDiceError('');
+      requestAnimationFrame(() => {
+        const input =
+          workshopElement.current?.querySelector<HTMLSelectElement>(
+            '.dice-track select',
+          );
+        input?.focus({ preventScroll: true });
+        input?.scrollIntoView({ block: 'center' });
+      });
       setError('');
     } catch {
       setError('Browser randomness was unavailable. No character was added.');
@@ -322,10 +355,13 @@ export default function Workshop() {
           phase ===
             (id.startsWith('checksum')
               ? 'checksum'
-              : id === 'derive'
-                ? 'derive'
-                : 'recover') &&
-          (!id.startsWith('checksum') || id === 'checksum-' + checksumIndex)
+              : id.startsWith('verify')
+                ? 'verify'
+                : id === 'derive'
+                  ? 'derive'
+                  : 'recover') &&
+          (!id.startsWith('checksum') || id === 'checksum-' + checksumIndex) &&
+          (!id.startsWith('verify') || id === 'verify-' + verifyIndex)
         }
         target={target}
         onChange={(progress) =>
@@ -337,6 +373,10 @@ export default function Workshop() {
             )
               return current;
             const checksums = { ...current.flow.checksums };
+            const verified = { ...current.flow.verified };
+            if (id.startsWith('verify-'))
+              verified[id.slice(7) as 'A' | 'C' | 'D'] =
+                progress.answers.length === exercises[id].steps.length;
             if (id === 'checksum-A' || id === 'checksum-C') {
               checksums[id === 'checksum-A' ? 'A' : 'C'] =
                 progress.answers.length === exercises[id].steps.length;
@@ -344,7 +384,7 @@ export default function Workshop() {
             return {
               ...current,
               lessons: { ...current.lessons, [id]: progress },
-              flow: { ...current.flow, checksums },
+              flow: { ...current.flow, checksums, verified },
             };
           })
         }
@@ -354,7 +394,11 @@ export default function Workshop() {
   }
   function createButton() {
     return (
-      <BookButton className="create-backup-button" onClick={fresh}>
+      <BookButton
+        className="create-backup-button"
+        onClick={fresh}
+        disabled={draft.length !== 52}
+      >
         Create my test backup <ArrowRight size={17} />
       </BookButton>
     );
@@ -370,18 +414,18 @@ export default function Workshop() {
           Skip to workshop
         </a>
         <header className="masthead">
-          <Link className="wordmark" href="/">
-            <Image
-              unoptimized
-              className="book-mark"
-              src={publicAsset('/art/sun.png')}
-              width="38"
-              height="38"
-              alt=""
-            />{' '}
-            Codex<span>32</span>
-          </Link>
+          <h1 className="codex-title">
+            <Link href="/">Codex32</Link>
+          </h1>
           <div className="workshop-header-actions">
+            <a
+              className="text-button"
+              href={wheelData.sources.paper}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Read the original book ↗
+            </a>
             <button
               className="text-button"
               disabled={!engine || !loaded}
@@ -419,29 +463,6 @@ export default function Workshop() {
           </div>
         </header>
         <div className="book-border" aria-hidden="true" />
-        <div className="title-row workshop-title">
-          <div>
-            <p className="eyebrow">THE PAPER COMPUTER, IN YOUR HANDS</p>
-            <h1 className="codex-title">
-              Codex<span>32</span>
-            </h1>
-          </div>
-          <a
-            className="original-book-link"
-            href={wheelData.sources.paper}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Read the original Codex32 book"
-          >
-            <Image
-              unoptimized
-              src={publicAsset('/art/book-cover.png')}
-              width="62"
-              height="80"
-              alt="Original Codex32 book cover"
-            />
-          </a>
-        </div>
         <div className="practice-notice">
           <ShieldCheck size={18} />
           <p>
@@ -502,18 +523,29 @@ export default function Workshop() {
                 <span>II.</span> Checksum
               </TabsTrigger>
               <TabsTrigger
-                value="derive"
-                disabled={!session || (!book.example && !bothChecksums)}
+                value="verify"
+                disabled={
+                  !session ||
+                  (!book.example && !flow.checksums.A && !flow.checksums.C)
+                }
               >
-                <span>III.</span> Derive D
+                <span>III.</span> Verify
+              </TabsTrigger>
+              <TabsTrigger
+                value="derive"
+                disabled={!session || (!book.example && !bothVerified)}
+              >
+                <span>IV.</span> Derive D
               </TabsTrigger>
               <TabsTrigger
                 value="recover"
                 disabled={
-                  !session || (!book.example && (!bothChecksums || !derived))
+                  !session ||
+                  (!book.example &&
+                    (!bothVerified || !derived || !flow.verified.D))
                 }
               >
-                <span>IV.</span> Recover S
+                <span>V.</span> Recover S
               </TabsTrigger>
               <TabsTrigger value="workbench" className="workbench-tab">
                 Recovery workbench
@@ -534,6 +566,11 @@ export default function Workshop() {
                     Two independent strings become initial shares A and C. Each
                     needs 26 random characters. The two shares together define a
                     fresh 128-bit test seed.
+                  </p>
+                  <p className="serif-copy">
+                    This exercise uses the name <b>PLAY</b> and three shares, A,
+                    C and D. Any two recover the seed (k = 2). We follow the
+                    book’s translation worksheet method.
                   </p>
                   <div className="random-share-drafts">
                     {['A', 'C'].map((label, row) => (
@@ -563,7 +600,11 @@ export default function Workshop() {
                   <div className="random-actions">
                     <button
                       className="secondary-button"
-                      disabled={draft.length >= 52}
+                      data-roll-dice
+                      disabled={
+                        draft.length >= 52 ||
+                        Boolean(dice && !book.diceEntry.recorded)
+                      }
                       onClick={roll}
                     >
                       <Dices size={17} /> Roll five pairs
@@ -580,7 +621,8 @@ export default function Workshop() {
                   <div className="create-backup-inline">
                     {createButton()}
                     <p className="worksheet-caption">
-                      Any remaining characters will be filled securely.
+                      Complete all 52 characters first. “Fill remaining” is an
+                      optional shortcut.
                     </p>
                   </div>
                   <button
@@ -621,55 +663,45 @@ export default function Workshop() {
                     higher second roll gives 1; a lower second roll gives 0.
                     Ties are rolled again.
                   </p>
-                  <div className="dice-tracks">
-                    {Array.from({ length: 5 }, (_, i) => (
-                      <div className="dice-track" key={i}>
-                        <span>Pair {i + 1}</span>
-                        <span
-                          className="die"
-                          aria-label={
-                            dice
-                              ? `First roll ${dice.dice[i].first}`
-                              : 'First roll pending'
-                          }
-                        >
-                          {dice ? glyphs[dice.dice[i].first - 1] : '□'}
-                        </span>
-                        <ArrowRight size={17} />
-                        <span
-                          className="die"
-                          aria-label={
-                            dice
-                              ? `Second roll ${dice.dice[i].second}`
-                              : 'Second roll pending'
-                          }
-                        >
-                          {dice ? glyphs[dice.dice[i].second - 1] : '□'}
-                        </span>
-                        <strong>{dice ? dice.dice[i].bit : '·'}</strong>
-                      </div>
-                    ))}
-                  </div>
-                  <output className="dice-result">
-                    {dice ? (
-                      <>
-                        <code>{dice.bits}</code>
-                        <ArrowRight size={20} />
-                        <strong>{dice.character}</strong>
-                        <span>
-                          added to share {draft.length <= 26 ? 'A' : 'C'}
-                        </span>
-                      </>
-                    ) : (
-                      <span>Roll five pairs to make your first character.</span>
-                    )}
-                  </output>
-                  {dice && (
-                    <p className="worksheet-caption">
-                      {dice.dice.reduce((sum, d) => sum + d.ties, 0)} tied pairs
-                      rerolled.
-                    </p>
-                  )}
+                  <DiceWorksheet
+                    dice={dice}
+                    entry={book.diceEntry}
+                    error={diceError}
+                    onChange={(diceEntry) => {
+                      setDiceError('');
+                      updateBook((current) => ({ ...current, diceEntry }));
+                    }}
+                    onRecord={() => {
+                      if (!dice) return;
+                      const next = recordDiceCharacter(
+                        draft,
+                        dice,
+                        book.diceEntry,
+                      );
+                      if (next === null) {
+                        setDiceError(
+                          'Check all five comparisons, then follow those branches to the character at the end of the tree.',
+                        );
+                        return;
+                      }
+                      updateBook((current) => ({
+                        ...current,
+                        draft: next,
+                        diceEntry: { ...current.diceEntry, recorded: true },
+                      }));
+                      setDiceError('');
+                      requestAnimationFrame(() => {
+                        const button =
+                          workshopElement.current?.querySelector<HTMLButtonElement>(
+                            next.length === 52
+                              ? '.create-backup-button'
+                              : '[data-roll-dice]',
+                          );
+                        button?.focus({ preventScroll: true });
+                        button?.scrollIntoView({ block: 'center' });
+                      });
+                    }}
+                  />
                   <details className="technical-note">
                     <summary>
                       How does this relate to the paper exercise?
@@ -677,8 +709,8 @@ export default function Workshop() {
                     <p>
                       The book uses comparisons between two rolls to remove
                       bias. Here virtual dice use browser randomness, equal
-                      pairs are retried, and the five resulting bits select a
-                      character in the Bech32 alphabet.
+                      pairs are retried. You compare the rolls and follow the
+                      original tree to record a character.
                     </p>
                     <p>
                       “Fill remaining” samples uniform characters directly.
@@ -688,12 +720,12 @@ export default function Workshop() {
                   </details>
                 </section>
               </div>
-              <div className="random-continue">
+              <div className="random-continue" data-ready={draft.length === 52}>
                 <div aria-live="polite">
                   <strong>{draft.length} of 52 characters ready</strong>
                   <p>
                     {draft.length < 52
-                      ? `Creating your backup will securely fill the remaining ${52 - draft.length} characters.`
+                      ? `Record ${52 - draft.length} more characters, or choose “Fill remaining characters”.`
                       : 'Both initial shares are ready. Next: calculate their checksums.'}
                   </p>
                 </div>
@@ -733,6 +765,54 @@ export default function Workshop() {
                   <div key={index} hidden={checksumIndex !== index}>
                     {renderExercise('checksum-' + index, 'S', () =>
                       dispatchFlow({ type: 'checksum-completed', index }),
+                    )}
+                  </div>
+                ))}
+            </TabsContent>
+            <TabsContent value="verify" data-stage="verify" keepMounted>
+              {phase === 'verify' && (
+                <output className="stage-announcement">{flow.notice}</output>
+              )}
+              <div className="stage-toolbar">
+                <p>
+                  Recopy the complete share. Calculate downward; the final row
+                  must be SECRETSHARE32.
+                </p>
+                <label htmlFor="verify-share">
+                  Verify share
+                  <NativeSelect
+                    id="verify-share"
+                    value={verifyIndex}
+                    onChange={(event) => {
+                      const index = event.target.value as 'A' | 'C' | 'D';
+                      if (book.example)
+                        updateBook((current) => ({
+                          ...current,
+                          exampleVerifyIndex: index,
+                        }));
+                      else dispatchFlow({ type: 'select-verification', index });
+                    }}
+                  >
+                    {(['A', 'C', 'D'] as const).map((index) => (
+                      <NativeSelectOption
+                        key={index}
+                        value={index}
+                        disabled={
+                          !book.example &&
+                          (index === 'D' ? !derived : !flow.checksums[index])
+                        }
+                      >
+                        Share {index}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </div>
+              {session &&
+                (['A', 'C', 'D'] as const).map((index) => (
+                  <div key={index} hidden={verifyIndex !== index}>
+                    {renderExercise('verify-' + index, 'S', () =>
+                      dispatchFlow({ type: 'verification-completed', index }),
                     )}
                   </div>
                 ))}

@@ -1,6 +1,8 @@
 'use client';
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- The interactive SVG needs its own accessible title and description; an img cannot contain its controls. */
 import { useId, useRef } from 'react';
+import AdditionDisc from './addition-disc';
+import RingDisc from './ring-disc';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   NativeSelect,
@@ -18,7 +20,7 @@ import {
   wheelData,
 } from '@/lib/workshop';
 import type { Engine } from '@/lib/practice';
-import { publicAsset } from '@/lib/public-asset';
+import { additionWindows } from '@/lib/paper-volvelle';
 
 export type WheelKind = 'recovery' | 'translation' | 'addition' | 'fusion';
 type WheelProps = {
@@ -43,10 +45,8 @@ export function wheelAnswer(
     ? add(engine, primary, other)
     : multiply(engine, primary, other);
 }
-const point = (slot: number, count: number, radius: number) => {
-  const angle = (slot / count) * Math.PI * 2 - Math.PI / 2;
-  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
-};
+const selectedSlot = (order: string, primary: string) =>
+  Math.max(0, order.indexOf(primary));
 const names: Record<WheelKind, string> = {
   recovery: 'Recovery',
   translation: 'Translation',
@@ -54,24 +54,28 @@ const names: Record<WheelKind, string> = {
   fusion: 'Fusion',
 };
 
-const artwork: Record<WheelKind, string> = {
-  recovery: 'wheel-lock',
-  translation: 'sun',
-  addition: 'dragon',
-  fusion: 'potion',
-};
-
 export default function Wheel({
   engine,
   kind,
-  primary,
+  primary: requestedPrimary,
   other,
   target = 'S',
   onPrimary,
   onOther,
   controls = true,
-}: WheelProps & { controls?: boolean }) {
+  factorSide,
+  onFactorSide,
+}: WheelProps & {
+  controls?: boolean;
+  factorSide: boolean;
+  onFactorSide: (value: boolean) => void;
+}) {
   const id = useId();
+  const primary =
+    (kind === 'translation' || kind === 'fusion') && requestedPrimary === 'Q'
+      ? 'P'
+      : requestedPrimary;
+  const face = kind === 'translation' && factorSide ? 'fusion' : kind;
   const drag = useRef<{ pointer: number; start: number; slot: number } | null>(
     null,
   );
@@ -79,28 +83,17 @@ export default function Wheel({
   const order =
     kind === 'recovery'
       ? recoveryOrder(engine, target)
-      : kind === 'addition'
+      : face === 'addition'
         ? wheelData.additionOrder
-        : kind === 'fusion'
+        : face === 'fusion'
           ? wheelData.fusionOrder
           : wheelData.translationOrder;
-  const slot = Math.max(0, order.indexOf(primary));
+  const slot = selectedSlot(order, primary);
   const count = order.length;
   const answer = wheelAnswer(engine, kind, primary, other, target);
+  const window = additionWindows.find((item) => item.letter === other)!;
   const isMultiplication = kind === 'translation' || kind === 'fusion';
   const zero = isMultiplication && primary === 'Q';
-  const format = (c: string | null) =>
-    c === null ? '—' : kind === 'fusion' ? symbol(c) : c;
-  const otherSlot = order.indexOf(other);
-  const highlighted =
-    kind === 'recovery' || kind === 'addition'
-      ? otherSlot
-      : otherSlot < 0
-        ? -1
-        : (otherSlot + slot) % count;
-  const handle = point(slot, count, 191);
-  const spokeOuter = point(highlighted, count, 207),
-    spokeInner = point(highlighted, count, 172);
   const primaryLabel =
     kind === 'recovery'
       ? 'Share to translate'
@@ -111,7 +104,7 @@ export default function Wheel({
     <div className="wheel-tool">
       <div className="wheel-heading">
         <span className="small-label">
-          {names[kind].toUpperCase()} VOLVELLE
+          {names[face].toUpperCase()} VOLVELLE
         </span>
         <span>
           {kind === 'recovery'
@@ -123,7 +116,9 @@ export default function Wheel({
       </div>
       <svg
         className="volvelle"
-        viewBox="-240 -240 480 480"
+        viewBox={
+          kind === 'addition' ? '-300 -300 600 600' : '-240 -240 480 480'
+        }
         role="img"
         aria-labelledby={`${id}-title ${id}-desc`}
         onPointerDown={(event) => {
@@ -132,8 +127,8 @@ export default function Wheel({
           const x = event.clientX - rect.left - rect.width / 2,
             y = event.clientY - rect.top - rect.height / 2;
           if (
-            Math.hypot(x, y) > rect.width * 0.4 ||
-            Math.hypot(x, y) < rect.width * 0.1
+            Math.hypot(x, y) > rect.width * 0.495 ||
+            Math.hypot(x, y) < rect.width * 0.025
           )
             return;
           drag.current = {
@@ -183,115 +178,49 @@ export default function Wheel({
           {other} to get {answer ?? 'an invalid index pair'}. Use the labeled
           controls beside the worksheet for keyboard access.
         </desc>
-        <circle r="232" className="wheel-cover" />
-        <circle r="224" className="wheel-gold-line" />
-        <circle r="190" className="wheel-paper" />
-        <circle r="190" className="wheel-disc" />
-        <circle r="157" className="wheel-inner-line" />
-        {order.split('').map((letter, index) => {
-          const at = point(index, count, 207),
-            tick = point(index, count, 223),
-            inside = point(index, count, 216);
-          return (
-            <g
-              key={letter}
-              onClick={() => {
-                if (!moved.current) {
-                  if (isMultiplication) onPrimary(letter);
-                  else onOther(letter);
-                }
+        <g id={`${id}-paper`}>
+          {kind === 'addition' ? (
+            <AdditionDisc
+              id={id}
+              angle={(slot * 360) / count}
+              other={other}
+              onPrimary={(letter) => {
+                if (!moved.current) onPrimary(letter);
               }}
-              className="wheel-character"
-            >
-              <line
-                x1={tick.x}
-                y1={tick.y}
-                x2={inside.x}
-                y2={inside.y}
-                className="wheel-tick"
-              />
-              {index ===
-                (kind === 'translation' || kind === 'fusion'
-                  ? highlighted
-                  : otherSlot) && (
-                <circle
-                  cx={at.x}
-                  cy={at.y}
-                  r="16"
-                  className="wheel-highlight"
-                />
-              )}
-              <text
-                x={at.x}
-                y={at.y}
-                className={
-                  index === highlighted ? 'wheel-letter is-lit' : 'wheel-letter'
-                }
-              >
-                {format(letter)}
-              </text>
-            </g>
-          );
-        })}
-        {order.split('').map((letter, index) => {
-          const positioned = isMultiplication ? (index + slot) % count : index;
-          const at = point(positioned, count, 172);
-          const read =
-            kind === 'recovery'
-              ? wheelData.recoveryReadouts[(index - slot + count) % count]
-              : kind === 'addition'
-                ? add(engine, primary, letter)
-                : letter;
-          const label =
-            kind === 'recovery' ? (read ? symbol(read) : '—') : format(read);
-          return (
-            <g
-              key={letter}
-              onClick={() => {
-                if (isMultiplication && !moved.current) onOther(letter);
+              onOther={(letter) => {
+                if (!moved.current) onOther(letter);
               }}
-            >
-              {positioned === highlighted && (
-                <circle
-                  cx={at.x}
-                  cy={at.y}
-                  r="17"
-                  className="wheel-window-active"
-                />
-              )}
-              <text x={at.x} y={at.y} className="wheel-inner-letter">
-                {zero ? '·' : label}
-              </text>
-            </g>
-          );
-        })}
-        {highlighted >= 0 && !zero && (
-          <line
-            x1={spokeInner.x}
-            y1={spokeInner.y}
-            x2={spokeOuter.x}
-            y2={spokeOuter.y}
-            className="wheel-read-line"
-          />
-        )}
-        <g className="wheel-handle">
-          <circle cx={handle.x} cy={handle.y} r="10" />
-          <text x={handle.x} y={handle.y}>
-            ◆
-          </text>
+            />
+          ) : (
+            <RingDisc
+              kind={face as 'recovery' | 'translation' | 'fusion'}
+              order={order}
+              angle={(slot * 360) / count}
+              other={other}
+              onPrimary={(letter) => {
+                if (!moved.current) onPrimary(letter);
+              }}
+              onOther={(letter) => {
+                if (!moved.current) onOther(letter);
+              }}
+            />
+          )}
         </g>
-        <image
-          className="wheel-original-art"
-          href={publicAsset(`/art/${artwork[kind]}.png`)}
-          x="-154"
-          y="-154"
-          width="308"
-          height="308"
-          transform={`rotate(${(slot / count) * 360})`}
-          aria-hidden="true"
-        />
-        <circle r="5" className="wheel-rivet" />
       </svg>
+      {kind === 'addition' && (
+        <figure className="paper-magnifier">
+          <figcaption>Window {other} · enlarged</figcaption>
+          <svg
+            viewBox={`${window.x - 24} ${window.y - 10} 33 20`}
+            aria-hidden="true"
+          >
+            <use
+              href={`#${id}-paper`}
+              transform={`rotate(${(-slot * 360) / count})`}
+            />
+          </svg>
+        </figure>
+      )}
       <div className="wheel-turn-buttons">
         <button
           className="secondary-button"
@@ -300,7 +229,11 @@ export default function Wheel({
         >
           <ChevronLeft size={17} />
         </button>
-        <span>Drag the inner disc. Read the highlighted pair.</span>
+        <span>
+          {kind === 'addition'
+            ? 'Point to the first character. Read the labeled window.'
+            : 'Drag the handle to turn the printed disc.'}
+        </span>
         <button
           className="secondary-button"
           onClick={() => onPrimary(order[nextSlot(slot, 1, count)])}
@@ -309,6 +242,16 @@ export default function Wheel({
           <ChevronRight size={17} />
         </button>
       </div>
+      {kind === 'translation' && (
+        <button
+          className="secondary-button wheel-flip"
+          onClick={() => onFactorSide(!factorSide)}
+        >
+          {factorSide
+            ? 'Turn over to translate'
+            : 'Turn over to set the factor'}
+        </button>
+      )}
       {controls && (
         <WheelControls
           engine={engine}
@@ -324,14 +267,16 @@ export default function Wheel({
         {zero
           ? 'Q is zero. With a zero factor, every input maps to Q.'
           : kind === 'addition'
-            ? 'Turn the disc to the top-row character. Find the bottom-row character on the outside ring and read its window.'
+            ? 'Point the dragon’s arrow at the top-row character on the fixed outer disc. Find the bottom-row character printed on the dragon; read through its square window. The ink stays fixed on each sheet as the top sheet turns.'
             : kind === 'recovery'
               ? target === 'S'
                 ? 'Point the handle at the share being translated; read the other share’s index. Their roles matter.'
                 : 'For deriving D, this digital adaptation relabels the paper recovery ring to target D.'
               : kind === 'fusion'
                 ? 'The fusion face combines factors. A 2-share recovery uses one factor per share; fusion is useful for larger thresholds.'
-                : 'Inner characters point to their translated outer characters. Q always maps to Q.'}
+                : factorSide
+                  ? 'Set the factor symbol in the handle window on this side, then turn the instrument over. Its two faces keep the same setting.'
+                  : 'Read the outer character at the arrow beside your inner character. Q always translates to Q, as printed on the handle.'}
       </p>
     </div>
   );
@@ -340,7 +285,7 @@ export default function Wheel({
 export function WheelControls({
   engine,
   kind,
-  primary,
+  primary: requestedPrimary,
   other,
   target = 'S',
   onPrimary,
@@ -348,6 +293,14 @@ export function WheelControls({
   expected,
 }: WheelProps & { expected?: { primary: string; other: string } }) {
   const id = useId();
+  const primary =
+    (kind === 'translation' || kind === 'fusion') && requestedPrimary === 'Q'
+      ? 'P'
+      : requestedPrimary;
+  const factorChoice =
+    kind === 'translation' || kind === 'fusion'
+      ? alphabet.replace('Q', '')
+      : alphabet;
   const choice = kind === 'recovery' ? recoveryOrder(engine, target) : alphabet;
   const primaryLabel =
     kind === 'recovery'
@@ -382,14 +335,16 @@ export function WheelControls({
             value={primary}
             onChange={(e) => onPrimary(e.target.value)}
           >
-            {choice.split('').map((c) => (
-              <NativeSelectOption key={c} value={c}>
-                {c}
-                {kind === 'fusion' || kind === 'translation'
-                  ? ` · ${symbol(c)}`
-                  : ''}
-              </NativeSelectOption>
-            ))}
+            {(kind === 'recovery' ? choice : factorChoice)
+              .split('')
+              .map((c) => (
+                <NativeSelectOption key={c} value={c}>
+                  {c}
+                  {kind === 'fusion' || kind === 'translation'
+                    ? ` · ${symbol(c)}`
+                    : ''}
+                </NativeSelectOption>
+              ))}
           </NativeSelect>
         </label>
         <label htmlFor={`${id}-other`}>

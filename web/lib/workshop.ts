@@ -67,6 +67,31 @@ export function rollDiceCharacter(fill: RandomFill = browserRandom) {
   };
 }
 export type DiceResult = ReturnType<typeof rollDiceCharacter>;
+export type DiceEntry = {
+  bits: string[];
+  character: string;
+  recorded: boolean;
+};
+export const emptyDiceEntry = (): DiceEntry => ({
+  bits: ['', '', '', '', ''],
+  character: '',
+  recorded: false,
+});
+export function recordDiceCharacter(
+  draft: string,
+  dice: DiceResult,
+  entry: DiceEntry,
+): string | null {
+  if (
+    draft.length >= 52 ||
+    entry.recorded ||
+    entry.bits.length !== 5 ||
+    entry.bits.some((bit, i) => bit !== String(dice.dice[i].bit)) ||
+    entry.character !== dice.character
+  )
+    return null;
+  return draft + dice.character;
+}
 
 function exported(backup: { exportText(): string; free(): void }): string {
   try {

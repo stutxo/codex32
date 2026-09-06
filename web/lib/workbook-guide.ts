@@ -69,7 +69,11 @@ export function stepGuide(
         : 'Prepare the worksheet'
     : step.kind === 'recovery'
       ? 'Find your two factors'
-      : 'Build one character at a time';
+      : step.kind === 'translation'
+        ? step.id.endsWith('-translate-0')
+          ? 'Translate the first complete share'
+          : 'Translate the second complete share'
+        : 'Add the two translated rows';
   const round = step.id.match(/^(down|up)-(\d+)-/);
   const position = round
     ? 'Row ' +

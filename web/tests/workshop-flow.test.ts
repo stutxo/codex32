@@ -24,6 +24,7 @@ await test('a visit starts at new-key creation and the workbench preserves an in
   assert.equal(initialFlow.phase, 'random');
   let flow = workshopFlow(initialFlow, { type: 'session-created' });
   flow = workshopFlow(flow, { type: 'checksum-completed', index: 'A' });
+  flow = workshopFlow(flow, { type: 'verification-completed', index: 'A' });
   const checksums = flow.checksums;
   flow = workshopFlow(flow, { type: 'navigate', phase: 'workbench' });
   assert.equal(flow.phase, 'workbench');
@@ -105,6 +106,9 @@ await test('the full fresh-key journey advances through both real checksums, der
     );
     flow = workshopFlow(flow, { type: 'checksum-completed', index });
     assert.equal(flow.focus, 'stage');
+    assert.equal(flow.phase, 'verify');
+    assert.equal(flow.verifyIndex, index);
+    flow = workshopFlow(flow, { type: 'verification-completed', index });
     if (index === 'A') {
       assert.equal(flow.phase, 'checksum');
       assert.equal(flow.checksumIndex, 'C');
@@ -115,6 +119,9 @@ await test('the full fresh-key journey advances through both real checksums, der
     session.shares.D,
   );
   flow = workshopFlow(flow, { type: 'derivation-completed' });
+  assert.equal(flow.phase, 'verify');
+  assert.equal(flow.verifyIndex, 'D');
+  flow = workshopFlow(flow, { type: 'verification-completed', index: 'D' });
   assert.equal(flow.phase, 'recover');
   assert.equal(
     translationLesson(engine, session, ['C', 'D'], 'S').output,
@@ -126,15 +133,19 @@ await test('the full fresh-key journey advances through both real checksums, der
   assert.equal(session.addresses.length, 3);
 });
 
-await test('completing C first still requires A; repeating a completion does not skip a missing checksum', () => {
+await test('completing C first still requires A and every calculated checksum has a separate verification', () => {
   let flow = workshopFlow(initialFlow, { type: 'session-created' });
   flow = workshopFlow(flow, { type: 'checksum-completed', index: 'C' });
+  assert.equal(flow.phase, 'verify');
+  assert.equal(flow.verifyIndex, 'C');
+  flow = workshopFlow(flow, { type: 'verification-completed', index: 'C' });
   assert.equal(flow.phase, 'checksum');
   assert.equal(flow.checksumIndex, 'A');
-  flow = workshopFlow(flow, { type: 'checksum-completed', index: 'C' });
+  flow = workshopFlow(flow, { type: 'verification-completed', index: 'C' });
   assert.equal(flow.phase, 'checksum');
-  assert.equal(flow.checksumIndex, 'A');
   flow = workshopFlow(flow, { type: 'checksum-completed', index: 'A' });
+  assert.equal(flow.phase, 'verify');
+  flow = workshopFlow(flow, { type: 'verification-completed', index: 'A' });
   assert.equal(flow.phase, 'derive');
 });
 

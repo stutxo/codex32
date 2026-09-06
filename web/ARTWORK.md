@@ -1,8 +1,10 @@
 # Original Codex32 artwork
 
 The site reproduces original illustrations, without repainting or color filters.
-The functional scales, handles, highlights, and readouts are interactive adaptations;
-they use the current BIP93 calculations rather than the older source branch's labels.
+Functional disc geometry follows the original PostScript generators. Fixed ink,
+cut-out windows and handles are separate SVG paper layers; all printed marks rotate
+with their own sheet. BIP93/WASM independently checks every reading. Selection
+highlights, the enlarged window and keyboard controls are screen aids.
 
 Sources:
 
@@ -15,6 +17,7 @@ Sources:
 | `wheel-lock.png` | `wheel-lock.php.inc`, 312 × 312 points | Recovery wheel |
 | `sun.png` | `sun.php.inc`, 178 × 178 points | Translation wheel, site mark |
 | `potion.png` | `potion.php.inc`, 177 × 177 points | Fusion wheel |
+| `dice-tree.svg` | Published PDF page 18, tree paths and 32 glyph groups, rotated upright | Manual dice worksheet |
 | `book-cover.png` | PDF page 1, complete page | Book link and recovery workbench |
 | `cover-wizard.png` | PDF page 1, x139 y338 w226 h341 | Dice lesson |
 | `cover-top-border.png` | PDF page 1, x145 y52 w329 h43 | Vine border |
@@ -40,3 +43,15 @@ Cover and volvelle illustrations: **Micaela Paez**. Illuminated letters and inli
 illustrations: **M. Lutfi’ As’ad**. Edited and produced by **Arri Isak Beck**.
 Copyright © 2020–2022 Blockstream. Both original MIT notices accompany the artwork
 in [LICENSE.txt](public/art/LICENSE.txt).
+
+The addition geometry reproduces `/showTopWheelPage` and `/drawBottomWheelPage` in
+`SSS32.ps` (top: printed p.21/PDF p.29; bottom: printed p.22/PDF p.31). Recovery,
+Fusion and Translation reproduce the two-disc generators, including their handle
+windows. The data orders remain those validated against current BIP93.
+
+`dice-tree.svg` contains original vector paths and glyphs from PDF page 18 (printed
+p.11), rendered with Poppler `pdftocairo -svg -f 18 -l 18`. The tree paths and leaf
+glyphs (root children 31–64) and their glyph definitions are retained, transformed
+by `matrix(0 1 -1 0 792 0)` into viewBox `320 84 430 327`. An independent red path
+marks the learner's choices without changing the drawing. Its hash is recorded in
+the provenance manifest.

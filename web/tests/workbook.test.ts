@@ -261,6 +261,10 @@ await test('restoration rechecks completion and truncates forged work at the fir
   saved.books.fresh.lessons['checksum-C'] = solve(c);
   saved.books.fresh.lessons.derive = solve(derive);
   saved.books.fresh.flow.phase = 'recover';
+  for (const index of ['A', 'C', 'D'] as const)
+    saved.books.fresh.lessons['verify-' + index] = solve(
+      checksumExercise(engine, fresh.shares[index], true),
+    );
   const complete = restoreWorkbooks(engine, JSON.stringify(saved));
   assert.deepEqual(complete.books.fresh.flow.checksums, { A: true, C: true });
   assert.equal(complete.books.fresh.flow.phase, 'recover');
