@@ -10,6 +10,8 @@ import {
   visibleShare,
   visibleTranslation,
   readingProgress,
+  finishTutorialReading,
+  instrumentHandoff,
 } from '../lib/workbook-guide.ts';
 import {
   checksumExercise,
@@ -21,6 +23,7 @@ import {
   restoreWorkbooks,
   resetSection,
   prepareLesson,
+  restoreLesson,
   type Book,
 } from '../lib/workbook.ts';
 import {
@@ -39,6 +42,146 @@ const a = checksumExercise(engine, session.shares.A),
   c = checksumExercise(engine, session.shares.C);
 const derive = shareExercise(engine, session, ['A', 'C'], 'D');
 const recover = shareExercise(engine, session, ['C', 'D'], 'S');
+
+await test('recovery keeps each factor setting and explicitly hands off to a different paper instrument', () => {
+  let progress = emptyLesson();
+  for (let i = 0; i < 2; i++) {
+    const step = recover.steps[i];
+    progress = finishTutorialReading(
+      recover,
+      {
+        ...progress,
+        primary: step.left!,
+        other: step.right!,
+        factorSide: false,
+      },
+      'S',
+    ).progress;
+    assert.equal(
+      progress.primary,
+      step.left,
+      'The factor wheel must not snap back after recording',
+    );
+    assert.equal(progress.answers[i], step.answer);
+    assert.equal(progress.answers.length, i + 1);
+  }
+  const handoff = instrumentHandoff(recover, progress)!;
+  assert.equal(handoff.previous.kind, 'recovery');
+  assert.equal(handoff.next.kind, 'translation');
+  assert.equal(visibleShare(recover, progress), 'MS1' + '?'.repeat(45));
+  const acknowledged = {
+    ...progress,
+    tutorialStage: handoff.next.id,
+    primary: 'Q',
+  };
+  const restored = restoreLesson(recover, acknowledged);
+  assert.equal(instrumentHandoff(recover, restored), null);
+  assert.deepEqual(
+    restored.answers,
+    progress.answers,
+    'Opening an instrument cannot grant a letter',
+  );
+  assert.equal(
+    restoreLesson(recover, { ...progress, tutorialStage: 'invented' })
+      .tutorialStage,
+    undefined,
+  );
+  const step = recover.steps[restored.cursor];
+  const firstLetter = finishTutorialReading(
+    recover,
+    { ...restored, primary: step.left!, other: step.right! },
+    'S',
+  );
+  assert.equal(firstLetter.progress.answers.length, 3);
+  assert.equal(firstLetter.progress.answers[2], step.answer);
+  assert.equal(instrumentHandoff(recover, firstLetter.progress), null);
+  assert.equal(
+    resetSection(
+      { ...emptyBook(), lessons: { 'recover-C,D': acknowledged } },
+      'recover-C,D',
+    ).lessons['recover-C,D'].tutorialStage,
+    undefined,
+  );
+});
+
+await test('the completed translation instrument stays set until addition is opened, and full autocomplete crosses handoffs', () => {
+  // D gets its factors from the derivation table (booklet issue 77), never
+  // from a relabeled recovery wheel, including during the first auto turn.
+  assert.equal(
+    instrumentHandoff(derive, tutorialCalculation(derive, emptyLesson(), 'D')),
+    null,
+  );
+  for (const [exercise, target] of [
+    [derive, 'D'],
+    [recover, 'S'],
+  ] as const) {
+    const secondRow = exercise.steps.findIndex((step) =>
+      step.id.endsWith('-translate-1'),
+    );
+    const firstRowEnd = exercise.steps[secondRow - 1];
+    const oldFactor = firstRowEnd.left!;
+    const rowChange = finishTutorialReading(
+      exercise,
+      {
+        ...emptyLesson(),
+        cursor: secondRow - 1,
+        answers: exercise.steps
+          .slice(0, secondRow - 1)
+          .map((step) => step.answer),
+        primary: oldFactor,
+        other: firstRowEnd.right!,
+      },
+      target,
+    ).progress;
+    assert.equal(rowChange.cursor, secondRow);
+    assert.equal(
+      rowChange.primary,
+      oldFactor,
+      'Do not reset the disc when the next row needs another factor',
+    );
+    assert.equal(
+      instrumentHandoff(exercise, rowChange),
+      null,
+      'Both translations use the same instrument',
+    );
+    const at = exercise.steps.findIndex((step) => step.kind === 'addition') - 1;
+    const step = exercise.steps[at];
+    const progress = {
+      ...emptyLesson(),
+      cursor: at,
+      answers: exercise.steps.slice(0, at).map((entry) => entry.answer),
+      primary: step.left!,
+      other: step.right!,
+    };
+    const result = finishTutorialReading(exercise, progress, target);
+    assert.equal(result.progress.primary, step.left);
+    const handoff = instrumentHandoff(exercise, result.progress)!;
+    assert.equal(handoff.next.kind, 'addition');
+    assert.equal(
+      visibleShare(exercise, result.progress),
+      'MS1' + '?'.repeat(45),
+    );
+    assert.equal(autoExercise(exercise, result.progress).complete, true);
+    assert.equal(
+      instrumentHandoff(
+        exercise,
+        autoExercise(exercise, result.progress).progress,
+      ),
+      null,
+    );
+    const opened = { ...result.progress, tutorialStage: handoff.next.id };
+    const first = handoff.next;
+    const filled = finishTutorialReading(
+      exercise,
+      { ...opened, primary: first.left!, other: first.right! },
+      target,
+    );
+    assert.equal(
+      visibleShare(exercise, filled.progress),
+      exercise.output.slice(0, 4) + '?'.repeat(44),
+    );
+  }
+});
 function sourceBook(): Book {
   return { ...emptyBook(), initial: [session.shares.A, session.shares.C] };
 }

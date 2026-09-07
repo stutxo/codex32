@@ -15,7 +15,8 @@ import {
 } from '@/lib/workbook';
 import {
   autoExercise,
-  autoNextEntry,
+  finishTutorialReading,
+  instrumentHandoff,
   tutorialCalculation,
   visibleShare,
   readingProgress,
@@ -73,7 +74,8 @@ export default function TutorialLesson(props: Props) {
       }
     : progress;
   const next = tutorialCalculation(exercise, base, target);
-  const step = exercise.steps[next.cursor];
+  const handoff = example ? null : instrumentHandoff(exercise, progress);
+  const step = handoff?.previous ?? exercise.steps[next.cursor];
   const column = Math.min(next.column, (step?.right?.length ?? 1) - 1);
   const view = example ? progress.exampleWheel : progress;
   const kind = (step?.kind ?? 'addition') as WheelKind;
@@ -92,7 +94,11 @@ export default function TutorialLesson(props: Props) {
     : null;
   const aligned = primary === left;
   const readings = readingProgress(exercise, progress);
-  const translation = visibleTranslation(exercise, progress, next.cursor);
+  const translation = visibleTranslation(
+    exercise,
+    progress,
+    handoff ? handoff.cursor - 1 : next.cursor,
+  );
   const displayedShare = visibleShare(exercise, progress, example);
   const title = exercise.verification
     ? 'Check the complete share.'
@@ -112,7 +118,7 @@ export default function TutorialLesson(props: Props) {
     onChange(editLesson(progress, change, example));
   }
   function autoLetter() {
-    if (!step || !hasWheel || busy || done) return;
+    if (!step || !hasWheel || busy || done || handoff) return;
     setError('');
     if (example) {
       onChange(
@@ -165,10 +171,7 @@ export default function TutorialLesson(props: Props) {
     const timer = setTimeout(() => {
       pending.current = null;
       setBusy(false);
-      const result = autoNextEntry(exercise, progress);
-      const following = result.correct
-        ? tutorialCalculation(exercise, result.progress, target)
-        : result.progress;
+      const result = finishTutorialReading(exercise, progress, target);
       if (result.correct)
         setWritten({
           value: task.letter,
@@ -179,9 +182,8 @@ export default function TutorialLesson(props: Props) {
         setError(
           'Your saved row needs a correction. Open the paper worksheet to edit it, or complete this section with code.',
         );
-      onChange(following);
-      if (result.correct && following.answers.length === exercise.steps.length)
-        onComplete();
+      onChange(result.progress);
+      if (result.complete) onComplete();
     }, 650);
     return () => clearTimeout(timer);
   }, [
@@ -233,6 +235,19 @@ export default function TutorialLesson(props: Props) {
         </span>
       </div>
       <code>{grouped(displayedShare)}</code>
+      {!exercise.checksum && !done && (
+        <ol className="tutorial-stages" aria-label="Calculation stages">
+          <li aria-current={kind === 'recovery' ? 'step' : undefined}>
+            1. {target === 'D' ? 'Look up factors' : 'Find two factors'}
+          </li>
+          <li aria-current={kind === 'translation' ? 'step' : undefined}>
+            2. Translate both shares
+          </li>
+          <li aria-current={kind === 'addition' ? 'step' : undefined}>
+            3. Add the rows
+          </li>
+        </ol>
+      )}
       <Progress
         value={readings.total ? (readings.completed / readings.total) * 100 : 0}
       >
@@ -330,14 +345,19 @@ export default function TutorialLesson(props: Props) {
           )}
           <div className="tutorial-grid">
             <div className="tutorial-instrument">
-              {hasWheel && !done && (
+              {hasWheel && !done && !handoff && (
                 <>
                   <p className="tutorial-current-step">
                     {stepGuide(step, Boolean(exercise.checksum), target).phase}{' '}
                     ·{' '}
-                    {step.position
-                      ? 'Position ' + step.position + ' of 48'
-                      : 'Column ' + (column + 1) + ' of ' + step.answer.length}
+                    {kind === 'recovery'
+                      ? 'Factor ' + (next.cursor + 1) + ' of 2'
+                      : step.position
+                        ? 'Position ' + step.position + ' of 48'
+                        : 'Column ' +
+                          (column + 1) +
+                          ' of ' +
+                          step.answer.length}
                   </p>
                   <p className="tutorial-instruction">
                     {kind === 'addition' ? (
@@ -346,8 +366,8 @@ export default function TutorialLesson(props: Props) {
                       </>
                     ) : kind === 'translation' ? (
                       <>
-                        Keep factor <b>{left}</b> set for share{' '}
-                        <b>{translation?.source}</b>. Read character{' '}
+                        {aligned ? 'Keep' : 'Set'} factor <b>{left}</b> for
+                        share <b>{translation?.source}</b>. Read character{' '}
                         <b>{right}</b>.
                       </>
                     ) : (
@@ -366,6 +386,7 @@ export default function TutorialLesson(props: Props) {
               )}
               {hasWheel ? (
                 <Wheel
+                  key={kind}
                   engine={engine}
                   kind={kind}
                   primary={view.primary}
@@ -394,7 +415,51 @@ export default function TutorialLesson(props: Props) {
               )}
             </div>
             <div className="tutorial-controls">
-              {hasWheel && !done && (
+              {!exercise.checksum && (
+                <div className="tutorial-factors" aria-label="Recorded factors">
+                  {exercise.steps.slice(0, 2).map((factor, i) => (
+                    <div key={factor.id}>
+                      <span>Factor for share {factor.left}</span>
+                      <b>
+                        {example || progress.answers[i] === factor.answer
+                          ? factor.answer
+                          : '?'}
+                      </b>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {handoff && (
+                <div className="tutorial-handoff">
+                  <h3>
+                    {handoff.next.kind === 'translation'
+                      ? 'Both factors are ready.'
+                      : 'Both translated rows are ready.'}
+                  </h3>
+                  <p>
+                    {handoff.next.kind === 'translation'
+                      ? 'These factors are the settings for the translation wheel. Next, use that wheel to translate each share with its factor.'
+                      : 'Now use the addition wheel to add the translated rows, one column at a time. These results fill the final string above.'}
+                  </p>
+                  <BookButton
+                    onClick={() => {
+                      setWritten(null);
+                      patch({
+                        tutorialStage: handoff.next.id,
+                        primary: 'Q',
+                        other: 'Q',
+                        factorSide: false,
+                      });
+                    }}
+                  >
+                    {handoff.next.kind === 'translation'
+                      ? 'Use the translation wheel'
+                      : 'Use the addition wheel'}{' '}
+                    →
+                  </BookButton>
+                </div>
+              )}
+              {hasWheel && !done && !handoff && (
                 <>
                   <output className="tutorial-reading" aria-live="polite">
                     <strong>{answer ?? '—'}</strong>
@@ -419,16 +484,22 @@ export default function TutorialLesson(props: Props) {
                   >
                     {example
                       ? 'Show the correct setting'
-                      : kind === 'translation' && aligned
-                        ? 'Fill next letter'
-                        : 'Turn & fill next letter'}
+                      : kind === 'recovery'
+                        ? 'Find factor for share ' + left
+                        : kind === 'translation' && aligned
+                          ? 'Fill next letter'
+                          : 'Turn & fill next letter'}
                   </button>
                   {written &&
                     written.example === example &&
                     (!example || written.cursor === next.cursor) && (
                       <output aria-live="polite">
-                        {example ? 'Example result' : 'Last letter recorded'}:{' '}
-                        <b>{written.value}</b>
+                        {example
+                          ? 'Example result'
+                          : exercise.steps[written.cursor]?.kind === 'recovery'
+                            ? 'Factor recorded'
+                            : 'Last letter recorded'}
+                        : <b>{written.value}</b>
                       </output>
                     )}
                 </>

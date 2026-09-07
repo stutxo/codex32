@@ -774,11 +774,14 @@ export default function Workshop() {
                       </p>
                     </div>
                   </section>
-                  <details className="paper-dice-details">
-                    <summary>
+                  <section
+                    className="paper-dice-details"
+                    aria-labelledby="dice-exercise-heading"
+                  >
+                    <h2 id="dice-exercise-heading">
                       Try the dice exercise from the book · {draft.length} / 52
                       letters
-                    </summary>
+                    </h2>
                     <div className="random-spread">
                       <section className="worksheet-page">
                         <div className="running-head">
@@ -976,7 +979,7 @@ export default function Workshop() {
                         </details>
                       </section>
                     </div>
-                  </details>
+                  </section>
                 </>
               )}
             </TabsContent>

@@ -2222,6 +2222,48 @@
   padding-top: 12px;
   margin-top: 12px;
 }
+.tutorial-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 0;
+  margin: 12px 0;
+  list-style: none;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.tutorial-stages [aria-current='step'] {
+  font-weight: 600;
+  color: var(--primary);
+}
+.tutorial-factors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.tutorial-factors > div {
+  padding: 12px;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.tutorial-factors b {
+  display: block;
+  margin-top: 6px;
+  font:
+    2rem Georgia,
+    serif;
+  color: var(--primary);
+}
+.tutorial-handoff h3 {
+  font:
+    1.6rem Georgia,
+    serif;
+  color: var(--red);
+}
+.tutorial-handoff p {
+  margin: 14px 0;
+  line-height: 1.6;
+}
 .tutorial-translation-row code {
   font-size: 1rem;
   margin-bottom: 0;
@@ -2424,9 +2466,11 @@
 .paper-dice-details {
   margin-top: 20px;
 }
-.paper-dice-details > summary {
+.paper-dice-details > h2 {
   padding: 16px;
-  cursor: pointer;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
   color: var(--primary);
 }
 .workshop-tabs {

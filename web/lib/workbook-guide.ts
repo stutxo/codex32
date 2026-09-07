@@ -131,6 +131,53 @@ export function tutorialCalculation(
   return next;
 }
 
+export function instrumentHandoff(
+  exercise: Exercise,
+  progress: LessonProgress,
+) {
+  const cursor = progress.answers.length;
+  const next = exercise.steps[cursor],
+    previous = exercise.steps[cursor - 1];
+  if (
+    exercise.checksum ||
+    !next ||
+    !previous ||
+    progress.tutorialStage === next.id
+  )
+    return null;
+  if (
+    (exercise.output[8] === 'S' &&
+      previous.kind === 'recovery' &&
+      next.kind === 'translation') ||
+    (previous.kind === 'translation' && next.kind === 'addition')
+  )
+    return { previous, next, cursor };
+  return null;
+}
+
+export function finishTutorialReading(
+  exercise: Exercise,
+  progress: LessonProgress,
+  target: 'D' | 'S',
+) {
+  const result = autoNextEntry(exercise, progress);
+  if (!result.correct) return result;
+  const next = tutorialCalculation(exercise, result.progress, target);
+  // Keep each physical instrument where it was turned until the next explicit
+  // turn, including when translating the second row at a different factor.
+  if (
+    exercise.steps[progress.cursor]?.kind ===
+      exercise.steps[next.cursor]?.kind ||
+    instrumentHandoff(exercise, next)
+  )
+    next.primary = progress.primary;
+  return {
+    correct: true,
+    complete: next.answers.length === exercise.steps.length,
+    progress: next,
+  };
+}
+
 export function visibleShare(
   exercise: Exercise,
   progress: LessonProgress,

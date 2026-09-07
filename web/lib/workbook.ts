@@ -268,6 +268,8 @@ const emptyWheel = (): WheelProgress => ({
 });
 export type ParkedStep = { draft?: string; wheel?: WheelProgress };
 export type LessonProgress = WheelProgress & {
+  // The instrument handoff explicitly opened in the quick tutorial.
+  tutorialStage?: string;
   deferredAnswers: Record<string, string>;
   parked: Record<string, ParkedStep>;
   answers: string[];
@@ -658,6 +660,10 @@ export function restoreLesson(
   return {
     deferredAnswers,
     parked,
+    ...(raw.tutorialStage === exercise.steps[answers.length]?.id &&
+    typeof raw.tutorialStage === 'string'
+      ? { tutorialStage: raw.tutorialStage }
+      : {}),
     ...restoreWheel(raw),
     exampleWheel: restoreWheel(raw.exampleWheel),
     answers,
