@@ -10,6 +10,7 @@ export const backup_index: (a: number) => [number, number];
 export const backup_new: (a: number, b: number) => [number, number, number];
 export const backup_seedBytes: (a: number) => number;
 export const backup_threshold: (a: number) => number;
+export const correctBackup: (a: number, b: number) => [number, number, number, number];
 export const createPracticeShare: (a: number, b: number, c: number, d: number) => [number, number, number];
 export const deriveBackup: (a: number, b: number, c: number, d: number) => [number, number, number];
 export const interpolationWeights: (a: number, b: number, c: number, d: number) => [number, number, number, number];
