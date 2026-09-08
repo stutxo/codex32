@@ -102,6 +102,55 @@ engine.initSync({
 const session = publishedSession(engine);
 const noop = () => {};
 
+await test('the shared footer exposes this website and the original website sources separately', async () => {
+  const SiteFooter = (
+    await import(
+      await componentUrl(
+        new URL('../app/workshop/site-footer.tsx', import.meta.url),
+      )
+    )
+  ).default;
+  const markup = renderToStaticMarkup(createElement(SiteFooter));
+  assert.match(markup, /^<footer class="site-footer">/);
+  assert.match(
+    markup,
+    /<nav class="footer-resources" aria-label="Project and resources">/,
+  );
+  const links = [...markup.matchAll(/<a href="([^"]+)"([^>]*)>(.*?)<\/a>/g)];
+  const resources = [
+    ['https://github.com/stutxo/codex32', 'This website’s GitHub'],
+    ['https://secretcodex32.com/', 'Secret Codex32'],
+    [
+      'https://github.com/apoelstra/volvelle-website',
+      'Secret Codex32’s GitHub',
+    ],
+  ];
+  for (const [href, label] of resources) {
+    const matches = links.filter((link) => link[1] === href);
+    assert.equal(matches.length, 1);
+    assert.ok(matches[0][3].includes(label));
+    assert.match(matches[0][2], /target="_blank"/);
+    assert.match(matches[0][2], /rel="noreferrer"/);
+  }
+  assert.ok(
+    markup.includes('Read the original codex'),
+    'Keep the original book link',
+  );
+  assert.ok(!markup.includes('<details'), 'Resources are always visible');
+  const workshop = await readFile(
+    new URL('../app/workshop/workshop.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(workshop, /<SiteFooter\s*\/>\s*<BookCredits\s*\/>/);
+  const css = await readFile(
+    new URL('../app/globals.css', import.meta.url),
+    'utf8',
+  );
+  assert.match(css, /\.footer-resource-links\s*\{[^}]*flex-wrap: wrap;/);
+  assert.match(css, /\.footer-resource-links\s*\{\s*flex-direction: column;/);
+  assert.match(css, /\.site-footer a\s*\{[^}]*min-height: 44px;/);
+});
+
 await test('each wheel keeps a single accessible circular grip, including when held', async () => {
   const Wheel = (
     await import(

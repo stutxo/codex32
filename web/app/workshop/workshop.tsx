@@ -7,14 +7,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import BookCredits from '@/components/book-credits';
 import BookHeading from '@/components/book-heading';
+import SiteFooter from './site-footer';
 import Workbench, { PracticeCards } from '../workbench/workbench';
-import {
-  ArrowRight,
-  BookOpen,
-  Dices,
-  ShieldCheck,
-  WandSparkles,
-} from 'lucide-react';
+import { ArrowRight, Dices, ShieldCheck, WandSparkles } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   NativeSelect,
@@ -1143,12 +1138,7 @@ export default function Workshop() {
             </TabsContent>
           </Tabs>
         )}
-        <footer className="site-footer">
-          <a href={wheelData.sources.paper} target="_blank" rel="noreferrer">
-            <BookOpen size={15} /> Read the original codex ↗
-          </a>
-          <span>LEARN · TURN · RECOVER</span>
-        </footer>
+        <SiteFooter />
         <BookCredits />
       </main>
       {phase === 'workbench' && <PracticeCards />}
