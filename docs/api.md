@@ -31,13 +31,16 @@ let seed = encoded_secret.secret_seed()?;
 | Derive another share | `derive_share(&inputs, new_index)` |
 | Inspect interpolation factors in input order | `interpolation_weights(&inputs, target_index)` |
 | Perform a paper-wheel operation | `add_symbols(a, b)` / `multiply_symbols(a, b)` |
+| Suggest a correction for a damaged string | `Codex32::correct(text)` |
 | Recover an encoded seed | `recover(&shares)` |
 | Obtain a seed from an S string | `secret.secret_seed()` |
 | Explicitly reveal encoded data | `backup.export()` |
 
 `Seed::from_bytes` accepts 16–64 bytes. Encoding new seeds uses zero padding; parsing and interpolation preserve any valid existing padding. Recovery requires exactly the threshold number of distinct, compatible non-S shares. `derive_share` additionally accepts the BIP's existing-secret construction with a nonzero-threshold S input. A zero-threshold S backup is decoded directly rather than sent through share recovery.
 
-Parsing is strict: do not silently remove spaces, repair characters, or change mixed case inside the cryptographic layer. An interface may offer a separately reviewed normalization or correction step. Export is canonical lowercase; a printed representation may use uppercase.
+Parsing is strict: do not silently remove spaces, repair characters, or change mixed case inside the cryptographic layer. Export is canonical lowercase; a printed representation may use uppercase.
+
+`Codex32::correct` is the reviewed correction step for a damaged string. It runs the BCH correction the BIP specifies on an otherwise well-formed codex32 string whose checksum fails, and returns the unique closest valid string, fully re-validated and exported in canonical lowercase. Per the BIP, an interface MUST show that suggestion to the user and obtain confirmation before using it; the code is only guaranteed to correct up to 4 substitutions, and with more damage the closest valid string can differ from the intended one. Already-valid strings pass through unchanged. For damaged characters with known locations (erasures), a failed parse's `Error::Checksum` carries a bech32 `CorrectableError`; combine `correction_context::<ShortChecksum>()` or `LongChecksum()` with `Corrector::add_erasures` to recover up to 8 known locations (13-character checksum) or more.
 
 `from_payload` accepts exactly the payload characters, without a header or checksum. It validates the threshold, index, alphabet, case, and supported 16–64-byte layout, then calculates a checksum. It does not create entropy: initial shares must receive independent uniformly random characters from the caller. Nonzero padding is retained. The wheel arithmetic and interpolation factors use the same fixed GF(32) operations as recovery; `interpolation_weights` validates exactly threshold distinct compatible inputs, permits a nonzero-threshold S input, and can inspect an existing target's identity weights.
 

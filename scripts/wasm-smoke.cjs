@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Backup, RecoveryWallet, recoverBackup } = require('../target/wasm-node/codex32_wasm.js');
+const { Backup, RecoveryWallet, recoverBackup, correctBackup } = require('../target/wasm-node/codex32_wasm.js');
 const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/bip93.json'), 'utf8'));
 
 for (const input of fixtures.valid) {
@@ -57,6 +57,13 @@ assert.equal(JSON.parse(restored.exportPublicState()).network, 'regtest');
 assert.throws(() => new RecoveryWallet([test.secret], 'bitcoin'));
 assert.throws(() => recoverBackup([test.shares[0], test.shares[0]]));
 assert.throws(() => recoverBackup(Array(10).fill(test.shares[0])));
+const correctable = 'ms12namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm';
+const damaged = 'ms12namea32qzyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm';
+assert.throws(() => new Backup(damaged));
+assert.equal(correctBackup(damaged), correctable);
+assert.equal(correctBackup(correctable), correctable);
+assert.equal(correctBackup(correctable.toUpperCase()), correctable);
+assert.throws(() => correctBackup('ms12Namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm'));
 original.free();
 restored.free();
-console.log('PASS: JavaScript ABI, public vectors, 392 recoveries, wallet addresses, strict index validation, and error propagation.');
+console.log('PASS: JavaScript ABI, public vectors, 392 recoveries, wallet addresses, strict index validation, error correction, and error propagation.');

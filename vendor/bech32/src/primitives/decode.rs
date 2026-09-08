@@ -1003,7 +1003,13 @@ impl fmt::Display for InvalidResidueError {
 
 impl InvalidResidueError {
     /// Constructs a new "invalid residue" error.
-    fn new<F: PackedFe32>(residue: F, target_residue: F) -> Self {
+    ///
+    /// Vendored change: public so downstream checksum implementations (e.g.
+    /// codex32) can build a value implementing `CorrectableError` and reuse
+    /// this crate's BCH correction machinery. The arguments are packed with
+    /// the crate's `PackedFe32` representation, matching `Engine::residue`
+    /// and `Checksum::TARGET_RESIDUE`.
+    pub fn new<F: PackedFe32>(residue: F, target_residue: F) -> Self {
         Self {
             actual: Polynomial::from_residue(residue),
             target: Polynomial::from_residue(target_residue),

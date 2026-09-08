@@ -121,6 +121,17 @@ pub fn recover_backup(shares: Vec<String>) -> Result<Backup, JsValue> {
     })
 }
 
+/// Attempt BCH error correction on a codex32 string, as BIP 93 recommends.
+/// Returns the unique closest valid codex32 string, re-validated and exported
+/// in canonical lowercase. An already-valid string is returned unchanged.
+/// The result MUST be shown to the user for confirmation before use: with more
+/// damage than the code can uniquely correct, the closest valid string can
+/// differ from the intended one, and a checksum is not authentication.
+#[wasm_bindgen(js_name = correctBackup)]
+pub fn correct_backup(input: &str) -> Result<String, JsValue> {
+    Ok(Codex32::correct(input).map_err(js_error)?.to_string())
+}
+
 #[wasm_bindgen]
 pub struct RecoveryWallet {
     inner: CodexWallet,
@@ -209,6 +220,18 @@ mod tests {
             let restored = recover_backup(case.shares[1..].to_vec()).unwrap();
             assert_eq!(restored.export_text(), case.secret);
         }
+    }
+
+    #[wasm_bindgen_test]
+    fn correction_returns_the_same_closest_string_in_wasm() {
+        let original = "ms12namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm";
+        let mut corrupted: Vec<char> = original.chars().collect();
+        corrupted[9] = 'q';
+        corrupted[30] = '0';
+        let corrupted: String = corrupted.into_iter().collect();
+        assert_eq!(correct_backup(&corrupted).unwrap(), original);
+        assert_eq!(correct_backup(original).unwrap(), original);
+        assert!(correct_backup("ms12Namea320zyxwvutsrqpnmlkjhgfedcaxrpp870hkkqrm").is_err());
     }
 
     #[wasm_bindgen_test]

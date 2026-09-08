@@ -8,6 +8,8 @@ mod checksum;
 mod sharing;
 mod types;
 
+pub use bech32::primitives::correction::CorrectableError;
+pub use checksum::{Long as LongChecksum, Short as ShortChecksum};
 pub use sharing::{
     add_symbols, derive_share, generate, generate_share, interpolation_weights, multiply_symbols,
     recover, split,

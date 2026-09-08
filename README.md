@@ -16,7 +16,7 @@ The product goal is a complete, simple wallet: create or restore, receive, send,
 | `codex32-wallet` | BIP 86 Taproot account zero, restore from backups, receive/change addresses, public state persistence, payment proposals and signing |
 | `codex32-wasm` | Validate/recover backups and restore test wallets through JavaScript bindings |
 
-The backup crate covers 16–64 byte seeds, both checksum formats, and thresholds 2–9. It accepts exactly the threshold number of distinct shares for recovery. Checksum error correction is not implemented; invalid strings are rejected.
+The backup crate covers 16–64 byte seeds, both checksum formats, and thresholds 2–9. It accepts exactly the threshold number of distinct shares for recovery. Invalid strings are rejected with precise errors, and `Codex32::correct` implements the BIP 93 BCH error correction: it returns the unique closest valid string (up to 4 substitutions, more with known locations) for the user to confirm, never silently applying it.
 
 ## Try the public practice wallet
 
@@ -51,6 +51,44 @@ cargo run --locked -p codex32-wallet --example recover
 ```
 
 This restores the published BIP 93 NAME example and prints regtest addresses. All bundled seeds and shares are public test data.
+
+To generate one fresh Codex32 secret with a 2-of-3 backup, run this yourself in
+a private terminal:
+
+```sh
+cargo run --locked -p codex32-core --example generate_secret
+```
+
+The default is a 2-of-3 backup. Set the threshold from 2 through 9 with
+`--threshold`, and the share count from the threshold through 31 with `--shares`.
+For example, to print a 5-of-31 set:
+
+```sh
+cargo run --locked -p codex32-core --example generate_secret -- --threshold 5 --shares 31
+```
+
+Each new wallet gets a random four-character identifier by default. To choose a
+memorable identifier instead, pass four valid Bech32 characters such as `sats`:
+
+```sh
+cargo run --locked -p codex32-core --example generate_secret -- --identifier sats
+```
+
+The options can be combined in any order, for example
+`--threshold 3 --shares 5 --identifier sats`.
+
+The example uses the operating system's cryptographic random source, refuses to
+print it to redirected output, and emits a recovered `S` value followed by all
+labeled recovery shares. Any threshold-sized subset reconstructs that same `S`
+value. Codex32 is network-neutral: the importing wallet chooses the network,
+script type, and derivation policy. In Sparrow 2.4.0 or newer, open **New or
+Imported Software Wallet > Codex32 (BIP93) > Enter Secret Share** and paste only
+the generated `S` value; Sparrow does not combine the backup shares. For a
+conventional mainnet Taproot wallet, select mainnet in Sparrow and record the
+BIP86 account path `m/86'/0'/0'` alongside the backup. The `S` secret or a
+threshold-sized share set is sufficient to spend the entire wallet; terminal
+scrollback and clipboard history may retain them. This project remains
+experimental and unaudited.
 
 ## Verify the implementation
 

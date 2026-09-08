@@ -24,8 +24,8 @@ pub enum Error {
     SecretIndex,
     #[error("invalid share index")]
     Index,
-    #[error("the checksum does not match")]
-    Checksum,
+    #[error("the checksum does not match ({0})")]
+    Checksum(bech32::primitives::decode::InvalidResidueError),
     #[error("expected an unshared secret with index S")]
     ExpectedSecret,
     #[error("expected recovery shares, not an unshared secret")]
@@ -40,6 +40,15 @@ pub enum Error {
     BackupSize,
     #[error("the cryptographic random source failed")]
     Randomness,
+}
+
+impl bech32::primitives::correction::CorrectableError for Error {
+    fn residue_error(&self) -> Option<&bech32::primitives::decode::InvalidResidueError> {
+        match self {
+            Error::Checksum(error) => Some(error),
+            _ => None,
+        }
+    }
 }
 
 /// An owned master seed. Access is explicit; formatting never reveals it.
@@ -148,6 +157,16 @@ pub(crate) fn threshold(value: u8) -> Result<(), Error> {
     }
 }
 
+/// The checksum length for a complete data part, or `None` for the never-legal
+/// data lengths 94 and 95 (between the short and long codex32 formats).
+fn checksum_len(data_len: usize) -> Option<usize> {
+    match data_len {
+        0..=93 => Some(13),
+        96..=124 => Some(15),
+        _ => None,
+    }
+}
+
 impl FromStr for Codex32 {
     type Err = Error;
     fn from_str(input: &str) -> Result<Self, Error> {
@@ -179,11 +198,7 @@ impl FromStr for Codex32 {
                     .to_u8(),
             );
         }
-        let checksum_len = match data.len() {
-            0..=93 => 13,
-            96..=124 => 15,
-            _ => return Err(Error::Length),
-        };
+        let checksum_len = checksum_len(data.len()).ok_or(Error::Length)?;
         let payload_len = data.len() - 6 - checksum_len;
         if payload_len * 5 % 8 > 4 {
             return Err(Error::Length);
@@ -199,7 +214,9 @@ impl FromStr for Codex32 {
             return Err(Error::SecretIndex);
         }
         if !checksum::valid(&data) {
-            return Err(Error::Checksum);
+            return Err(Error::Checksum(
+                checksum::residue_error(&data).expect("a legal data length"),
+            ));
         }
         Ok(Self {
             metadata: Metadata {
@@ -322,5 +339,72 @@ impl Codex32 {
         }
         // BIP 93 deliberately discards arbitrary final padding bits.
         Ok(Seed(bytes))
+    }
+}
+
+impl Codex32 {
+    /// Attempt BCH error correction on a codex32 string, as BIP 93 recommends.
+    ///
+    /// Accepts the same shape of string as [`FromStr`], except that the
+    /// checksum need not be valid. On success this returns the unique closest
+    /// valid codex32 string, fully re-validated (length, metadata, structure)
+    /// and exported in canonical lowercase. An already-valid string is
+    /// returned unchanged.
+    ///
+    /// The returned string MUST be shown to the user for confirmation before
+    /// being used for recovery or derivation. BIP 93 requires this: the code
+    /// is only guaranteed to correct up to 4 substitution errors, and with
+    /// more damage the unique closest valid string can differ from the
+    /// intended one. A valid checksum detects corruption; it does not
+    /// authenticate the data.
+    pub fn correct(input: &str) -> Result<Zeroizing<String>, Error> {
+        if !(48..=127).contains(&input.len()) {
+            return Err(Error::Length);
+        }
+        if let Some((position, _)) = input
+            .bytes()
+            .enumerate()
+            .find(|(_, b)| !(33..=126).contains(b))
+        {
+            return Err(Error::Character { position });
+        }
+        let has_upper = input.bytes().any(|b| b.is_ascii_uppercase());
+        let has_lower = input.bytes().any(|b| b.is_ascii_lowercase());
+        if has_upper && has_lower {
+            return Err(Error::MixedCase);
+        }
+        if !input[..3].eq_ignore_ascii_case("ms1") {
+            return Err(Error::Prefix);
+        }
+        let mut data = Zeroizing::new(Vec::with_capacity(input.len() - 3));
+        for (offset, c) in input[3..].chars().enumerate() {
+            data.push(
+                Fe32::from_char(c)
+                    .map_err(|_| Error::Character {
+                        position: offset + 3,
+                    })?
+                    .to_u8(),
+            );
+        }
+        if checksum_len(data.len()).is_none() {
+            return Err(Error::Length);
+        }
+        // Already-valid strings need no correction; return them unchanged so
+        // undamaged data is never "corrected" into something else.
+        if checksum::valid(&data) {
+            return Ok(Zeroizing::new(input.to_lowercase()));
+        }
+        let residue = checksum::residue_error(&data).expect("a legal data length");
+        let corrected = checksum::correct(&data).ok_or(Error::Checksum(residue))?;
+        // The corrector guarantees a valid checksum for the candidate; the
+        // strict parser re-checks everything else (threshold/index rules, seed
+        // length) before the string is presented.
+        let mut canonical = Zeroizing::new(String::with_capacity(corrected.len() + 3));
+        canonical.push_str("ms1");
+        for &symbol in corrected.iter() {
+            canonical.push(fe(symbol).to_char());
+        }
+        canonical.parse::<Codex32>()?;
+        Ok(canonical)
     }
 }
