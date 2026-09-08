@@ -10,6 +10,7 @@ import {
 } from '../lib/workshop.ts';
 import {
   initialFlow,
+  normalizeWorkshopFlow,
   workshopFlow,
   type WorkshopFlow,
 } from '../lib/workshop-flow.ts';
@@ -90,13 +91,22 @@ await test('failed randomness and verification do not return a replacement sessi
   );
 });
 
-await test('the full fresh-key journey advances through both real checksums, derivation, and recovery', () => {
+await test('the fresh-key journey pauses for share review before checksums, derivation, and recovery', () => {
   const session = completePracticeSession(engine, '3', (bytes) =>
     bytes.forEach((_, i) => {
       bytes[i] = i;
     }),
   );
   let flow = workshopFlow(initialFlow, { type: 'session-created' });
+  assert.equal(flow.phase, 'random');
+  assert.equal(flow.focus, 'stage');
+  assert.equal(normalizeWorkshopFlow(flow, false).phase, 'random');
+  assert.deepEqual(flow.checksums, { A: false, C: false });
+  // The review button explicitly resumes at the first incomplete stage.
+  flow = normalizeWorkshopFlow(
+    workshopFlow(flow, { type: 'navigate', phase: 'recover', reveal: true }),
+    false,
+  );
   assert.equal(flow.phase, 'checksum');
   assert.equal(flow.checksumIndex, 'A');
   for (const index of ['A', 'C'] as const) {
@@ -176,7 +186,7 @@ await test('a new session resets completed checksums and a published example sta
     flow = workshopFlow(flow, { type: 'checksum-completed', index });
   const fresh = workshopFlow(flow, { type: 'session-created' });
   assert.deepEqual(fresh.checksums, { A: false, C: false });
-  assert.equal(fresh.phase, 'checksum');
+  assert.equal(fresh.phase, 'random');
   assert.equal(fresh.checksumIndex, 'A');
   assert.ok(fresh.navigation > flow.navigation);
   const published = workshopFlow(flow, { type: 'published-example' });

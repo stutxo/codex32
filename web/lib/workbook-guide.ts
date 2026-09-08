@@ -8,6 +8,14 @@ import {
   type ExerciseStep,
   type LessonProgress,
 } from './workbook.ts';
+import type { Engine } from './practice.ts';
+import {
+  add,
+  alphabet,
+  multiply,
+  recoveryOrder,
+  recoveryReadout,
+} from './workshop.ts';
 
 // Both the artwork and the controls use this gate. Choosing a setting never
 // writes an answer or earns worksheet credit, including in the worked example.
@@ -103,7 +111,7 @@ export function autoExercise(exercise: Exercise, progress: LessonProgress) {
 }
 
 // Preview the next wheel calculation without changing saved work. The tutorial
-// commits these table/copy steps only when the learner chooses an auto action.
+// commits these table/copy steps only with a confirmed reading or an auto action.
 export function tutorialCalculation(
   exercise: Exercise,
   progress: LessonProgress,
@@ -161,6 +169,69 @@ export function finishTutorialReading(
   target: 'D' | 'S',
 ) {
   const result = autoNextEntry(exercise, progress);
+  return advanceTutorialReading(exercise, progress, result, target);
+}
+
+// Confirm the live quick-tutorial wheel, not an answer filled by the shortcut.
+// Its reading face and input character are fixed by the displayed exercise.
+export function confirmTutorialReading(
+  engine: Engine,
+  exercise: Exercise,
+  progress: LessonProgress,
+  target: 'D' | 'S',
+) {
+  const rejected = { correct: false, complete: false, progress };
+  if (
+    instrumentHandoff(exercise, progress) ||
+    !progress.answers.every((answer, i) => answer === exercise.steps[i]?.answer)
+  )
+    return rejected;
+  const next = tutorialCalculation(exercise, progress, target);
+  const step = exercise.steps[next.cursor];
+  if (!step || !['addition', 'translation', 'recovery'].includes(step.kind))
+    return rejected;
+  const column = Math.min(next.column, (step.right?.length ?? 1) - 1);
+  const left = step.left?.[column],
+    right = step.right?.[column];
+  const primary =
+    step.kind === 'translation' && progress.primary === 'Q'
+      ? 'P'
+      : progress.primary;
+  if (
+    !left ||
+    !right ||
+    !alphabet.includes(primary) ||
+    !alphabet.includes(left) ||
+    !alphabet.includes(right) ||
+    primary !== left
+  )
+    return rejected;
+  const reading =
+    step.kind === 'recovery'
+      ? recoveryReadout(recoveryOrder(engine, target), primary, right)
+      : step.kind === 'addition'
+        ? add(engine, primary, right)
+        : multiply(engine, primary, right);
+  if (reading === null || reading !== step.answer[column]) return rejected;
+  const filled = {
+    ...next,
+    column,
+    primary,
+    other: right,
+    factorSide: false,
+    draft: writeColumn(next.draft, column, reading, step.answer.length),
+  };
+  const result = checkColumn(exercise, filled);
+  if (!result.correct) return rejected;
+  return advanceTutorialReading(exercise, filled, result, target);
+}
+
+function advanceTutorialReading(
+  exercise: Exercise,
+  progress: LessonProgress,
+  result: ReturnType<typeof checkColumn>,
+  target: 'D' | 'S',
+) {
   if (!result.correct) return result;
   const next = tutorialCalculation(exercise, result.progress, target);
   // Keep each physical instrument where it was turned until the next explicit

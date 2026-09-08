@@ -33,7 +33,6 @@ import {
   keepUnknown,
   selectOperand,
   autoNextEntry,
-  autoExercise,
   visibleShare,
 } from '@/lib/workbook-guide';
 
@@ -43,7 +42,6 @@ export default function ManualLesson({
   progress,
   onChange,
   onComplete,
-  onContinue = onComplete,
   example,
   active,
   target = 'S',
@@ -54,7 +52,6 @@ export default function ManualLesson({
   progress: LessonProgress;
   onChange: (value: LessonProgress) => void;
   onComplete: () => void;
-  onContinue?: () => void;
   example: boolean;
   active: boolean;
   target?: 'D' | 'S';
@@ -583,9 +580,6 @@ export default function ManualLesson({
               <p className="completed-checksum">{exercise.checksum}</p>
             )}
             <code>{grouped(exercise.output)}</code>
-            <BookButton onClick={onContinue}>
-              Continue <ArrowRight size={17} />
-            </BookButton>
             <button className="text-button" onClick={() => visit(0)}>
               Review my steps
             </button>
@@ -858,30 +852,10 @@ export default function ManualLesson({
                 >
                   Auto-complete next letter
                 </button>
-                {
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={autoBusy}
-                    onClick={() => {
-                      const result = autoExercise(exercise, progress);
-                      if (!result.correct) return;
-                      setError('');
-                      onChange(result.progress);
-                      if (result.complete) onComplete();
-                    }}
-                  >
-                    {exercise.verification
-                      ? 'Auto-complete this verification'
-                      : exercise.checksum
-                        ? 'Auto-complete this checksum'
-                        : 'Auto-complete this section'}
-                  </button>
-                }
                 <p>
                   {autoBusy
                     ? 'Turning the wheel, then recording the next letter…'
-                    : 'Optional shortcuts perform the same worksheet calculations. You can review every filled row.'}
+                    : 'Fills one letter. Use Auto-complete section above to fill the rest of the worksheet.'}
                 </p>
               </div>
             )}

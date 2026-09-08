@@ -6,7 +6,13 @@ checker accepts text for local validation; do not enter real backups. There is n
 account, chain connection, balance, signing, or broadcast flow.
 
 The home page `/` starts with an empty new-key worksheet; the published example
-is loaded only when requested. The recovery workbench, share checker, and printable
+is loaded only when requested. Generating shares stays on the Key step to show A
+and C, with unfinished checksums marked by `?`. “Next: Checksums” advances to the
+first worksheet; reloading or revisiting Key preserves the shares and progress.
+Quick and paper lessons share an action strip below the output and progress:
+“Auto-complete section” fills the remaining answers, then “Next” advances after
+the learner reviews the result. Single-letter controls stay beside the worksheet.
+The recovery workbench, share checker, and printable
 cards share the main page in a workbench tab. Previous `/workshop` and `/workbench`
 URLs redirect to the corresponding view on the main page.
 The workshop puts a large, draggable volvelle beside the learner's answer sheet,
@@ -54,6 +60,19 @@ Recovery uses the fixed S ring and a rotating printed symbol disc. Translation
 and Fusion are opposite faces of one instrument: flipping preserves the factor
 and reverses the apparent rotation. Q has no factor slot; input Q follows the
 printed Q ↔ Q rule. Alphabet ink uses Courier, as in the source.
+
+In every quick tutorial (checksums, verification, derivation and recovery),
+turning the wheel fills a live, read-only character
+box but grants no worksheet credit. Confirm checks the visible setting and reading;
+Auto-fill next letter (or factor) sets and confirms exactly one entry. The recovery
+wheel finds two factors, translation builds the two working rows, and addition
+fills the secret. Explicit Next buttons explain and acknowledge each new instrument;
+translating the second share keeps the same wheel and uses the other factor.
+Quick translation holds the wheel once its factor is correct. Purple marks the
+fixed handle factor; blue marks the current inner-ring input (or Q↔Q). Confirm
+and Auto-fill leave the rotation unchanged within a share. Adjust wheel temporarily
+restores turning, and the next share requests its own factor. Paper tools and
+worked examples retain their freely turning wheels.
 
 Practice work is saved automatically in this browser's localStorage, under
 `codex32.practice-workbooks.v1`. It includes initial A/C shares, unfinished dice
