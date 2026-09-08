@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import * as engine from '../lib/wasm/codex32_wasm.js';
-import { publishedSession } from '../lib/workshop.ts';
+import { alphabet, multiply, publishedSession } from '../lib/workshop.ts';
 import {
   autoExercise,
   autoNextEntry,
@@ -12,6 +12,7 @@ import {
   readingProgress,
   finishTutorialReading,
   instrumentHandoff,
+  confirmTutorialReading,
 } from '../lib/workbook-guide.ts';
 import {
   checksumExercise,
@@ -23,6 +24,7 @@ import {
   restoreWorkbooks,
   resetSection,
   prepareLesson,
+  visitLesson,
   restoreLesson,
   type Book,
 } from '../lib/workbook.ts';
@@ -42,6 +44,248 @@ const a = checksumExercise(engine, session.shares.A),
   c = checksumExercise(engine, session.shares.C);
 const derive = shareExercise(engine, session, ['A', 'C'], 'D');
 const recover = shareExercise(engine, session, ['C', 'D'], 'S');
+
+await test('manual confirmation finishes checksum rows, verification and derivation one reading at a time', () => {
+  for (const [exercise, target] of [
+    [a, 'S'],
+    [c, 'S'],
+    [checksumExercise(engine, session.shares.A, true), 'S'],
+    [checksumExercise(engine, session.shares.C, true), 'S'],
+    [checksumExercise(engine, session.shares.D, true), 'S'],
+    [derive, 'D'],
+  ] as const) {
+    let progress = emptyLesson();
+    let count = 0;
+    while (progress.answers.length < exercise.steps.length) {
+      assert.ok(count++ < 1500, 'Every confirm must make progress');
+      const handoff = instrumentHandoff(exercise, progress);
+      if (handoff) {
+        assert.equal(
+          confirmTutorialReading(engine, exercise, progress, target).correct,
+          false,
+        );
+        progress = { ...progress, tutorialStage: handoff.next.id };
+      }
+      const preview = tutorialCalculation(exercise, progress, target);
+      const step = exercise.steps[preview.cursor];
+      const column = Math.min(preview.column, step.right!.length - 1);
+      const aligned = { ...progress, primary: step.left![column] };
+      assert.deepEqual(
+        readingProgress(exercise, aligned),
+        readingProgress(exercise, progress),
+        'Turning alone must not record a worksheet entry',
+      );
+      const result = confirmTutorialReading(engine, exercise, aligned, target);
+      assert.equal(result.correct, true, step.id + ' column ' + column);
+      assert.deepEqual(
+        result,
+        finishTutorialReading(
+          exercise,
+          {
+            ...preview,
+            primary: aligned.primary,
+            other: step.right![column],
+            factorSide: false,
+          },
+          target,
+        ),
+      );
+      assert.equal(
+        readingProgress(exercise, result.progress).completed,
+        readingProgress(exercise, preview).completed + 1,
+      );
+      progress = restoreLesson(exercise, result.progress);
+      assert.equal(
+        progress.draft,
+        result.progress.draft,
+        'Reload keeps a partially confirmed row',
+      );
+    }
+    assert.equal(visibleShare(exercise, progress), exercise.output);
+    assert.equal(
+      readingProgress(exercise, progress).completed,
+      readingProgress(exercise, progress).total,
+    );
+  }
+});
+
+await test('manual wheel confirmation records exactly one correct reading for every recovery pair', () => {
+  for (const pair of [
+    ['A', 'C'],
+    ['A', 'D'],
+    ['C', 'D'],
+  ] as const) {
+    const exercise = shareExercise(engine, session, [...pair], 'S');
+    let progress = emptyLesson();
+    let switches = 0;
+    while (progress.answers.length < exercise.steps.length) {
+      const handoff = instrumentHandoff(exercise, progress);
+      if (handoff) {
+        assert.deepEqual(
+          confirmTutorialReading(engine, exercise, progress, 'S'),
+          {
+            correct: false,
+            complete: false,
+            progress,
+          },
+          'Switching instruments must remain an explicit action',
+        );
+        switches++;
+        progress = restoreLesson(exercise, {
+          ...progress,
+          tutorialStage: handoff.next.id,
+          primary: 'Q',
+        });
+        assert.equal(instrumentHandoff(exercise, progress), null);
+      }
+      const next = tutorialCalculation(exercise, progress, 'S');
+      const step = exercise.steps[next.cursor];
+      const before = readingProgress(exercise, progress).completed;
+      // The quick view fixes the reading face/input, even with saved paper settings.
+      const aligned = {
+        ...progress,
+        primary: step.left!,
+        other: 'Q',
+        factorSide: true,
+      };
+      assert.equal(
+        readingProgress(exercise, aligned).completed,
+        before,
+        'Turning the wheel must not count as a confirmed answer',
+      );
+      const wrong = {
+        ...aligned,
+        primary: alphabet
+          .split('')
+          .find((char) => char !== step.left && char !== 'Q')!,
+      };
+      assert.deepEqual(confirmTutorialReading(engine, exercise, wrong, 'S'), {
+        correct: false,
+        complete: false,
+        progress: wrong,
+      });
+      const result = confirmTutorialReading(engine, exercise, aligned, 'S');
+      assert.equal(result.correct, true, step.id);
+      assert.equal(result.progress.answers.length, progress.answers.length + 1);
+      assert.equal(
+        readingProgress(exercise, result.progress).completed,
+        before + 1,
+      );
+      assert.equal(result.progress.answers[next.cursor], step.answer);
+      const automated = finishTutorialReading(
+        exercise,
+        { ...next, primary: step.left! },
+        'S',
+      );
+      assert.deepEqual(
+        result.progress.answers,
+        automated.progress.answers,
+        'Auto-fill and manual confirmation should record the same single entry',
+      );
+      if (step.kind !== 'addition') {
+        assert.equal(
+          visibleShare(exercise, result.progress),
+          'MS1' + '?'.repeat(45),
+        );
+      }
+      if (
+        exercise.steps[result.progress.cursor]?.kind === step.kind ||
+        instrumentHandoff(exercise, result.progress)
+      ) {
+        assert.equal(
+          result.progress.primary,
+          aligned.primary,
+          'Confirming does not turn the current wheel',
+        );
+      }
+      progress = restoreLesson(exercise, result.progress);
+      assert.deepEqual(
+        progress.answers,
+        result.progress.answers,
+        'Reload preserves confirmation',
+      );
+      assert.equal(
+        result.complete,
+        progress.answers.length === exercise.steps.length,
+      );
+    }
+    assert.equal(switches, 2);
+    assert.equal(visibleShare(exercise, progress), session.secret);
+    assert.equal(
+      confirmTutorialReading(engine, exercise, progress, 'S').correct,
+      false,
+    );
+  }
+});
+
+await test('matching zero readings still require the right translation setting', () => {
+  const at = recover.steps.findIndex(
+    (step) => step.kind === 'translation' && step.right === 'Q',
+  );
+  assert.ok(at > 2);
+  const step = recover.steps[at];
+  const progress = {
+    ...emptyLesson(),
+    cursor: at,
+    answers: recover.steps.slice(0, at).map((entry) => entry.answer),
+    primary: alphabet
+      .split('')
+      .find((char) => char !== step.left && char !== 'Q')!,
+  };
+  assert.equal(multiply(engine, progress.primary, 'Q'), step.answer);
+  assert.equal(
+    confirmTutorialReading(engine, recover, progress, 'S').correct,
+    false,
+  );
+  assert.equal(
+    confirmTutorialReading(
+      engine,
+      recover,
+      { ...progress, primary: step.left! },
+      'S',
+    ).correct,
+    true,
+  );
+
+  // A stored Q setting is displayed as P on the translation wheel (there is no Q factor slot).
+  const identity = {
+    ...recover,
+    steps: [{ ...step, left: 'P', right: 'C', answer: 'C' }],
+  };
+  const result = confirmTutorialReading(engine, identity, emptyLesson(), 'S');
+  assert.equal(result.correct, true);
+  assert.deepEqual(result.progress.answers, ['C']);
+});
+
+await test('unreadable settings and malformed saved work cannot be confirmed', () => {
+  for (const primary of [recover.steps[0].right!, 'S', '?', '']) {
+    const progress = { ...emptyLesson(), primary };
+    assert.deepEqual(confirmTutorialReading(engine, recover, progress, 'S'), {
+      correct: false,
+      complete: false,
+      progress,
+    });
+  }
+  for (const progress of [
+    {
+      ...emptyLesson(),
+      primary: recover.steps[0].left!,
+      draft: recover.steps[0].answer + 'Q',
+    },
+    {
+      ...emptyLesson(),
+      primary: recover.steps[1].left!,
+      cursor: 1,
+      answers: ['?'],
+    },
+  ]) {
+    assert.deepEqual(confirmTutorialReading(engine, recover, progress, 'S'), {
+      correct: false,
+      complete: false,
+      progress,
+    });
+  }
+});
 
 await test('recovery keeps each factor setting and explicitly hands off to a different paper instrument', () => {
   let progress = emptyLesson();
@@ -198,6 +442,104 @@ function finishInitial(book: Book, index: 'A' | 'C') {
     index,
   );
 }
+
+await test('generated shares stay visible through reload until the learner continues to checksums', () => {
+  const saved = emptyWorkbooks();
+  saved.books.fresh = {
+    ...sourceBook(),
+    flow: workshopFlow(initialFlow, { type: 'session-created' }),
+  };
+  const restored = restoreWorkbooks(engine, JSON.stringify(saved)).books.fresh;
+  assert.equal(restored.flow.phase, 'random');
+  assert.deepEqual(restored.initial, saved.books.fresh.initial);
+  assert.deepEqual(restored.flow.checksums, { A: false, C: false });
+  assert.deepEqual(restored.flow.computerVerified, {
+    A: false,
+    C: false,
+    D: false,
+  });
+  for (const [id, exercise] of [
+    ['checksum-A', a],
+    ['checksum-C', c],
+  ] as const) {
+    assert.equal(
+      visibleShare(exercise, restored.lessons[id]),
+      exercise.output.slice(0, 35) + '?'.repeat(13),
+    );
+    // Only the book's supplied bottom row is filled, not a learner calculation.
+    assert.equal(restored.lessons[id].answers.length, 1);
+  }
+  const next = normalizeWorkshopFlow(
+    workshopFlow(restored.flow, {
+      type: 'navigate',
+      phase: 'recover',
+      reveal: true,
+    }),
+    false,
+  );
+  assert.equal(next.phase, 'checksum');
+  assert.equal(next.checksumIndex, 'A');
+  assert.equal(next.focus, 'stage');
+  assert.deepEqual(next.checksums, restored.flow.checksums);
+  assert.deepEqual(restored.initial, saved.books.fresh.initial);
+});
+
+await test('reviewing generated shares preserves checksum work and resumes the unfinished share', () => {
+  const book = finishInitial(sourceBook(), 'A');
+  book.lessons['checksum-C'] = {
+    ...prepareLesson(c, emptyLesson()),
+    draft: c.steps[1].answer.slice(0, 3),
+    primary: 'F',
+  };
+  book.flow = workshopFlow(book.flow, { type: 'navigate', phase: 'random' });
+  const saved = emptyWorkbooks();
+  saved.books.fresh = book;
+  const restored = restoreWorkbooks(engine, JSON.stringify(saved)).books.fresh;
+  assert.equal(restored.flow.phase, 'random');
+  assert.deepEqual(restored.initial, book.initial);
+  assert.deepEqual(restored.lessons['checksum-A'], book.lessons['checksum-A']);
+  assert.equal(
+    restored.lessons['checksum-C'].draft,
+    book.lessons['checksum-C'].draft,
+  );
+  assert.equal(restored.lessons['checksum-C'].primary, 'F');
+  const resumed = normalizeWorkshopFlow(
+    workshopFlow(restored.flow, {
+      type: 'navigate',
+      phase: 'recover',
+      reveal: true,
+    }),
+    false,
+  );
+  assert.equal(resumed.phase, 'checksum');
+  assert.equal(resumed.checksumIndex, 'C');
+  assert.equal(resumed.computerVerified.A, true);
+});
+
+await test('whole-section autocomplete can finish the remaining work while reviewing an earlier paper row', () => {
+  for (const exercise of [
+    a,
+    derive,
+    checksumExercise(engine, session.shares.A, true),
+  ]) {
+    const accepted = exercise.steps.slice(0, 4).map((step) => step.answer);
+    const progress = {
+      ...emptyLesson(),
+      answers: accepted,
+      cursor: 1,
+      draft: accepted[1],
+    };
+    const result = autoExercise(
+      exercise,
+      visitLesson(exercise, progress, progress.answers.length),
+    );
+    assert.equal(result.complete, true);
+    assert.deepEqual(result.progress.answers.slice(0, 4), accepted);
+    assert.equal(visibleShare(exercise, result.progress), exercise.output);
+    assert.equal(progress.cursor, 1);
+    assert.equal(progress.answers.length, 4);
+  }
+});
 
 await test('completed shares remain on their own section until explicitly continued, including after refresh', () => {
   let book = sourceBook();

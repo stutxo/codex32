@@ -107,9 +107,9 @@ export function workshopFlow(
       return {
         ...initialFlow,
         checksums: { A: false, C: false },
-        phase: 'checksum',
+        phase: 'random',
         notice:
-          'Your test backup is ready. First, calculate share A’s checksum.',
+          'Your starting shares are ready. Review A and C before continuing to checksums.',
         navigation,
       };
     case 'published-example':

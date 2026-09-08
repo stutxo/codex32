@@ -9,6 +9,7 @@ export default function RingDisc({
   onPrimary,
   onOther,
   guide,
+  distinguishReadout = false,
 }: {
   kind: 'recovery' | 'translation' | 'fusion';
   order: string;
@@ -17,6 +18,7 @@ export default function RingDisc({
   onPrimary: (letter: string) => void;
   onOther: (letter: string) => void;
   guide?: { primary: string; other?: string };
+  distinguishReadout?: boolean;
 }) {
   const recovery = kind === 'recovery';
   const radius = recovery ? 170 : 176;
@@ -34,6 +36,11 @@ export default function RingDisc({
             transform={`rotate(${(i * 360) / 31})`}
             className="wheel-character"
             data-character={letter}
+            data-wheel-mark={
+              distinguishReadout && letter === guide?.primary
+                ? 'factor'
+                : undefined
+            }
             data-guided-active={
               guide
                 ? letter === guide.primary ||
@@ -99,6 +106,11 @@ export default function RingDisc({
               transform={`rotate(${(i * 360) / 31})`}
               className="ring-printed-position"
               data-character={letter}
+              data-wheel-mark={
+                distinguishReadout && letter === guide?.other
+                  ? 'read'
+                  : undefined
+              }
               data-guided-active={
                 guide ? !recovery && letter === guide.other : undefined
               }
@@ -125,15 +137,24 @@ export default function RingDisc({
           );
         })}
         {kind === 'translation' && (
-          <text
-            x="0"
-            y="-202"
-            className="ring-zero-reminder"
-            data-guided-active={guide ? guide.other === 'Q' : undefined}
-            onClick={() => onOther('Q')}
+          <g
+            data-wheel-mark={
+              distinguishReadout && guide?.other === 'Q' ? 'read' : undefined
+            }
           >
-            Q↔Q
-          </text>
+            {distinguishReadout && guide?.other === 'Q' && (
+              <rect x="-25" y="-222" width="50" height="25" />
+            )}
+            <text
+              x="0"
+              y="-202"
+              className="ring-zero-reminder"
+              data-guided-active={guide ? guide.other === 'Q' : undefined}
+              onClick={() => onOther('Q')}
+            >
+              Q↔Q
+            </text>
+          </g>
         )}
       </g>
       <circle r="3" className="wheel-rivet" />

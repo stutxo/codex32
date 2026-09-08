@@ -2121,7 +2121,7 @@
 .tutorial-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
-  align-items: center;
+  align-items: start;
 }
 .tutorial-instrument {
   min-width: 0;
@@ -2145,6 +2145,52 @@
 .tutorial-instrument .wheel-turn-buttons span {
   font-size: 0.875rem;
 }
+.wheel-translation-legend,
+.wheel-held-notice {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-block: 14px;
+  font-size: 0.9375rem;
+}
+.wheel-translation-legend > span {
+  padding: 6px 10px;
+  border: 1px solid;
+}
+.wheel-factor-label {
+  color: #493d78;
+  background: #e6dff4;
+}
+.wheel-read-label {
+  color: #205c67;
+  background: #cbe9ed;
+}
+.volvelle [data-wheel-mark='factor'] > rect {
+  fill: #e6dff4;
+  stroke: #493d78;
+}
+.volvelle [data-wheel-mark='read'] > rect {
+  fill: #cbe9ed;
+  stroke: #205c67;
+}
+.wheel-held-notice > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+}
+.wheel-held-notice button {
+  min-height: 44px;
+}
+.wheel-tool[data-turning-locked='true'] .volvelle {
+  touch-action: pan-y;
+}
+.wheel-tool[data-turning-locked='true'] .volvelle,
+.wheel-tool[data-turning-locked='true'] .volvelle * {
+  cursor: default;
+}
 .tutorial-instrument .paper-magnifier {
   margin: 10px 0;
 }
@@ -2152,7 +2198,7 @@
   padding: 28px;
   display: grid;
   gap: 18px;
-  align-content: center;
+  align-content: start;
   min-width: 0;
 }
 .tutorial-controls button {
@@ -2163,6 +2209,72 @@
   font-family: Georgia, serif;
   font-size: 1.45rem;
   line-height: 1.45;
+}
+.tutorial-purpose {
+  max-width: 64ch;
+  margin: 0 auto 18px;
+  line-height: 1.55;
+  font-size: 1rem;
+}
+.tutorial-entry {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  background: #eee8d7;
+}
+.tutorial-entry label {
+  font-weight: 600;
+}
+.tutorial-entry .tutorial-wheel-character {
+  width: 5rem;
+  height: 4.5rem;
+  padding: 4px;
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--primary);
+  font:
+    2.75rem 'Courier New',
+    monospace;
+  text-align: center;
+}
+.tutorial-entry output {
+  width: 100%;
+  line-height: 1.5;
+  font-size: 0.9375rem;
+}
+.stable-message,
+.wheel-turn-slot {
+  display: grid;
+  min-width: 0;
+}
+.stable-message > span,
+.wheel-turn-slot > div {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.stable-message > [aria-hidden='true'],
+.wheel-turn-slot > [aria-hidden='true'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.tutorial-instrument .wheel-turn-slot > div {
+  margin: 10px 0 0;
+}
+.tutorial-recorded {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2ch;
+  align-items: baseline;
+  gap: 0.5rem;
+  line-height: 1.5;
+}
+.tutorial-recorded b {
+  font-family: 'Courier New', monospace;
+  text-align: center;
+}
+.tutorial-entry button {
+  width: 100%;
 }
 .tutorial-reading {
   display: flex;
@@ -2196,6 +2308,48 @@
   padding-top: 12px;
   font-size: 0.95rem;
   line-height: 1.55;
+}
+.math-explanation summary {
+  min-height: 44px;
+  padding-block: 10px;
+}
+.math-explanation summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.math-explanation-body {
+  border-left: 2px solid var(--border);
+  padding: 0 0 4px 16px;
+}
+.math-explanation-body p {
+  font-size: 1rem;
+}
+.math-explanation-body > p:first-child {
+  padding-top: 0;
+}
+.math-worked-example {
+  margin: 16px 0;
+  padding: 12px;
+  background: #eee8d7;
+}
+.math-worked-example figcaption {
+  font-size: 0.875rem;
+}
+.math-worked-example pre {
+  margin-top: 12px;
+  overflow-x: auto;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.math-worked-example .math-equation {
+  font-weight: bold;
+  font-size: 1.25rem;
+}
+.math-deeper {
+  margin-top: 12px;
+}
+.math-factor {
+  overflow-wrap: anywhere;
 }
 .tutorial-share {
   border-top: 1px solid var(--border);
@@ -2561,20 +2715,37 @@
   }
 }
 .tutorial-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 28px;
-  align-items: center;
   padding: 24px 28px;
 }
-.tutorial-heading h2,
-.tutorial-heading > p {
-  grid-column: 1;
+.workshop-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin: 16px 28px 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  background: #eee8d7;
 }
-.tutorial-complete-button {
-  grid-column: 2;
-  grid-row: 1 / 3;
+.workshop-actions p {
+  min-width: 0;
+  max-width: 58ch;
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.workshop-actions .primary-button {
+  flex-shrink: 0;
   min-height: 52px;
+  white-space: normal;
+}
+.tutorial-start-controls > .workshop-actions {
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+}
+.saved-key-page > .workshop-actions {
+  margin: 24px 0 0;
 }
 .tutorial-instrument .tutorial-instruction {
   text-align: center;
@@ -2620,20 +2791,21 @@
     line-height: 1.25;
   }
   .tutorial-heading {
-    display: grid;
-    grid-template-columns: 1fr;
     padding: 18px;
-    gap: 10px;
   }
   .tutorial-heading h2 {
     font-size: 1.6rem;
   }
   .tutorial-heading > p {
-    margin: 0;
+    margin: 10px 0 0;
   }
-  .tutorial-complete-button {
-    grid-column: 1;
-    grid-row: auto;
+  .workshop-actions {
+    flex-direction: column;
+    align-items: stretch;
+    margin: 12px 18px 18px;
+    padding: 16px;
+  }
+  .workshop-actions .primary-button {
     width: 100%;
   }
   .tutorial-start {

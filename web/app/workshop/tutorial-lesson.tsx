@@ -1,6 +1,8 @@
 'use client';
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useId, useRef, useState, type ComponentProps } from 'react';
 import BookButton from '@/components/book-button';
+import WorkshopActions from '@/components/workshop-actions';
+import { Input } from '@/components/ui/input';
 import {
   Progress,
   ProgressLabel,
@@ -16,6 +18,7 @@ import {
 import {
   autoExercise,
   finishTutorialReading,
+  confirmTutorialReading,
   instrumentHandoff,
   tutorialCalculation,
   visibleShare,
@@ -26,6 +29,8 @@ import {
 import ManualLesson from './manual-lesson';
 import Wheel, { wheelAnswer, type WheelKind } from './wheel';
 import SecretResult from './secret-result';
+import MathExplanation from './math-explanation';
+import StableMessage from './stable-message';
 import { alphabet } from '@/lib/workshop';
 
 type Props = ComponentProps<typeof ManualLesson> & {
@@ -58,6 +63,8 @@ export default function TutorialLesson(props: Props) {
     cursor: number;
   } | null>(null);
   const [error, setError] = useState('');
+  const [adjustingFactor, setAdjustingFactor] = useState<string | null>(null);
+  const readingId = useId();
   const pending = useRef<{
     progress: LessonProgress;
     output: string;
@@ -93,6 +100,12 @@ export default function TutorialLesson(props: Props) {
     ? wheelAnswer(engine, kind, primary, right, target)
     : null;
   const aligned = primary === left;
+  const translationPractice = kind === 'translation' && !example;
+  const factorStep = exercise.output + ':' + step?.id;
+  const factorHeld =
+    translationPractice &&
+    aligned &&
+    (Boolean(handoff) || adjustingFactor !== factorStep);
   const readings = readingProgress(exercise, progress);
   const translation = visibleTranslation(
     exercise,
@@ -113,13 +126,51 @@ export default function TutorialLesson(props: Props) {
       ? 'A checksum catches copying mistakes. Try a turn or finish this share.'
       : target === 'D'
         ? 'Turn the wheel to make D from A and C. No new randomness is needed.'
-        : 'Set one share aside. Any two of your three shares can recover the original secret.';
+        : 'Use shares ' +
+          exercise.steps[0].left +
+          ' and ' +
+          exercise.steps[1].left +
+          ' to rebuild S, the complete secret. The three wheels do different jobs: find settings, translate shares, then combine the results.';
+  const isRecovery = !exercise.checksum && target === 'S';
+  const canConfirm =
+    hasWheel &&
+    aligned &&
+    answer !== null &&
+    answer === step?.answer[column] &&
+    !busy &&
+    !done &&
+    !handoff;
+  const currentWritten =
+    written?.example === example && (!example || written.cursor === next.cursor)
+      ? written
+      : null;
   function patch(change: Partial<LessonProgress>) {
     onChange(editLesson(progress, change, example));
+  }
+  function turnWheel(value: string) {
+    if (factorHeld) return;
+    if (value !== primary) setAdjustingFactor(null);
+    patch({ primary: value });
+  }
+  function confirmLetter() {
+    if (example || !canConfirm) return;
+    const result = confirmTutorialReading(engine, exercise, progress, target);
+    if (!result.correct) {
+      setError(
+        'This reading could not be recorded. Check the wheel setting and try again.',
+      );
+      return;
+    }
+    setError('');
+    setAdjustingFactor(null);
+    setWritten({ value: answer!, example: false, cursor: next.cursor });
+    onChange(result.progress);
+    if (result.complete) onComplete();
   }
   function autoLetter() {
     if (!step || !hasWheel || busy || done || handoff) return;
     setError('');
+    setAdjustingFactor(null);
     if (example) {
       onChange(
         editLesson(
@@ -180,7 +231,7 @@ export default function TutorialLesson(props: Props) {
         });
       else
         setError(
-          'Your saved row needs a correction. Open the paper worksheet to edit it, or complete this section with code.',
+          'Your saved row needs a correction. Open the paper worksheet to edit it, or use Auto-complete section.',
         );
       onChange(result.progress);
       if (result.complete) onComplete();
@@ -211,6 +262,7 @@ export default function TutorialLesson(props: Props) {
     setBusy(false);
     setWritten(null);
     setError('');
+    setAdjustingFactor(null);
     setPaper(false);
     onReset();
   }
@@ -238,13 +290,13 @@ export default function TutorialLesson(props: Props) {
       {!exercise.checksum && !done && (
         <ol className="tutorial-stages" aria-label="Calculation stages">
           <li aria-current={kind === 'recovery' ? 'step' : undefined}>
-            1. {target === 'D' ? 'Look up factors' : 'Find two factors'}
+            1. {target === 'D' ? 'Look up factors' : 'Find two wheel settings'}
           </li>
           <li aria-current={kind === 'translation' ? 'step' : undefined}>
             2. Translate both shares
           </li>
           <li aria-current={kind === 'addition' ? 'step' : undefined}>
-            3. Add the rows
+            3. {isRecovery ? 'Combine into the secret' : 'Add the rows'}
           </li>
         </ol>
       )}
@@ -262,7 +314,9 @@ export default function TutorialLesson(props: Props) {
         <small>
           {exercise.checksum
             ? 'The ? spaces fill as you solve the checksum on the way back up.'
-            : 'Translate each row first, then add them to fill the ? spaces in the final share.'}
+            : isRecovery
+              ? 'The secret stays blank while you find settings and translate shares. Confirmed additions fill its ? spaces in the final stage.'
+              : 'Translate each row first, then add them to fill the ? spaces in the final share.'}
         </small>
       )}
       {translation && !done && (
@@ -272,6 +326,30 @@ export default function TutorialLesson(props: Props) {
         </div>
       )}
     </div>
+  );
+  const sectionActions = !example && (
+    <WorkshopActions
+      label={
+        done
+          ? isRecovery
+            ? 'View recovered secret'
+            : continueLabel
+          : 'Auto-complete section'
+      }
+      description={
+        done
+          ? isRecovery
+            ? 'Your secret is recovered. View it with the wallet import instructions.'
+            : 'This section is complete. Review your result above, then choose Next.'
+          : isRecovery
+            ? 'Fills all remaining answers and shows your recovered secret.'
+            : 'Fills all remaining answers in this section. Review the result, then choose Next.'
+      }
+      disabled={busy}
+      onAction={
+        done ? (isRecovery ? () => setPaper(false) : onContinue) : complete
+      }
+    />
   );
   if (paper)
     return (
@@ -283,6 +361,7 @@ export default function TutorialLesson(props: Props) {
           ← Back to the quick tutorial
         </button>
         {shareProgress}
+        {sectionActions}
         {resetButton}
         <ManualLesson {...props} active={active} />
       </div>
@@ -309,17 +388,9 @@ export default function TutorialLesson(props: Props) {
       <header className="tutorial-heading">
         <h2>{title}</h2>
         <p>{description}</p>
-        {!example && (done || !exercise.verification) && (
-          <BookButton
-            className="tutorial-complete-button"
-            disabled={busy}
-            onClick={done ? onContinue : complete}
-          >
-            {done ? continueLabel : 'Auto-complete this section'} →
-          </BookButton>
-        )}
       </header>
       {shareProgress}
+      {sectionActions}
       <div className="tutorial-reset-row">
         {resetButton}
         {!example && <span>Your key and the other worksheets are kept.</span>}
@@ -335,9 +406,9 @@ export default function TutorialLesson(props: Props) {
         <>
           {exercise.verification && onSkipPaper && !example && (
             <div className="paper-check-choice">
-              <BookButton onClick={onSkipPaper}>
-                Check with code and continue →
-              </BookButton>
+              <button className="text-button" onClick={onSkipPaper}>
+                Skip the paper worksheet: check share and continue →
+              </button>
               <button className="text-button" onClick={() => setPaper(true)}>
                 Try the paper verification instead
               </button>
@@ -347,6 +418,19 @@ export default function TutorialLesson(props: Props) {
             <div className="tutorial-instrument">
               {hasWheel && !done && !handoff && (
                 <>
+                  {isRecovery && (
+                    <p className="tutorial-purpose">
+                      {kind === 'recovery'
+                        ? 'First, find one setting (called a factor) for each share. These are settings for the next wheel, not letters of your secret.'
+                        : kind === 'translation'
+                          ? 'Use the same translation wheel for both shares, with a different factor for each. Use factor ' +
+                            left +
+                            ' for share ' +
+                            translation?.source +
+                            '. Each confirmed character fills its working row, not the secret yet.'
+                          : 'The addition wheel combines the two working rows, one column at a time. Each character you confirm fills the secret above.'}
+                    </p>
+                  )}
                   <p className="tutorial-current-step">
                     {stepGuide(step, Boolean(exercise.checksum), target).phase}{' '}
                     ·{' '}
@@ -365,22 +449,57 @@ export default function TutorialLesson(props: Props) {
                         Turn to <b>{left}</b>. Read window <b>{right}</b>.
                       </>
                     ) : kind === 'translation' ? (
-                      <>
-                        {aligned ? 'Keep' : 'Set'} factor <b>{left}</b> for
-                        share <b>{translation?.source}</b>. Read character{' '}
-                        <b>{right}</b>.
-                      </>
+                      translationPractice ? (
+                        <>
+                          <StableMessage
+                            active={factorHeld ? 0 : aligned ? 1 : 2}
+                            messages={[
+                              <>
+                                Wheel set to <b>{left}</b> — no turning needed.
+                              </>,
+                              <>
+                                Adjusting factor <b>{left}</b>. Keep this
+                                setting to read.
+                              </>,
+                              <>
+                                Set the handle to factor <b>{left}</b> for share{' '}
+                                <b>{translation?.source}</b>.
+                              </>,
+                            ]}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          {aligned ? 'Keep' : 'Set'} factor <b>{left}</b> for
+                          share <b>{translation?.source}</b>. Read character{' '}
+                          <b>{right}</b>.
+                        </>
+                      )
                     ) : (
                       <>
                         Point to share <b>{left}</b>. Read share <b>{right}</b>.
                       </>
                     )}
                   </p>
-                  {kind === 'translation' && (
+                  {translationPractice ? (
                     <p className="tutorial-factor-note">
-                      The setting stays fixed for this row. Only the highlighted
-                      character changes as you fill each letter.
+                      <StableMessage
+                        active={!aligned ? 0 : right === 'Q' ? 1 : 2}
+                        messages={[
+                          'Line up the handle with the purple factor mark. You only need to set it once for this share.',
+                          'Q always reads as Q, as printed on the handle. Keep the same factor.',
+                          'Read the blue inner-ring character, then the outer character beside it. The blue mark is not a new handle setting.',
+                        ]}
+                      />
                     </p>
+                  ) : (
+                    kind === 'translation' &&
+                    !isRecovery && (
+                      <p className="tutorial-factor-note">
+                        The setting stays fixed for this row. Only the
+                        highlighted character changes as you fill each letter.
+                      </p>
+                    )
                   )}
                 </>
               )}
@@ -392,16 +511,25 @@ export default function TutorialLesson(props: Props) {
                   primary={view.primary}
                   other={right}
                   target={target}
-                  onPrimary={(value) => {
-                    if (value === left) patch({ primary: value });
-                  }}
-                  onTurn={(value) => patch({ primary: value })}
+                  onPrimary={turnWheel}
+                  onTurn={turnWheel}
                   onOther={() => {}}
                   guided={{ primary: left, other: right }}
                   controls={false}
                   factorSide={false}
                   onFactorSide={() => {}}
                   showFlip={false}
+                  translationGuide={
+                    translationPractice
+                      ? {
+                          locked: factorHeld,
+                          disabled: busy,
+                          onAdjust: handoff
+                            ? undefined
+                            : () => setAdjustingFactor(factorStep),
+                        }
+                      : undefined
+                  }
                 />
               ) : (
                 <div className="tutorial-finished-mark">
@@ -433,13 +561,16 @@ export default function TutorialLesson(props: Props) {
                 <div className="tutorial-handoff">
                   <h3>
                     {handoff.next.kind === 'translation'
-                      ? 'Both factors are ready.'
-                      : 'Both translated rows are ready.'}
+                      ? 'Settings found. Next, translate the shares.'
+                      : isRecovery
+                        ? 'Rows translated. Next, build the secret.'
+                        : 'Rows translated. Next, build share D.'}
                   </h3>
                   <p>
                     {handoff.next.kind === 'translation'
-                      ? 'These factors are the settings for the translation wheel. Next, use that wheel to translate each share with its factor.'
-                      : 'Now use the addition wheel to add the translated rows, one column at a time. These results fill the final string above.'}
+                      ? 'The recovery wheel has finished its job. Switch to the translation wheel: it uses each setting to convert that share’s characters into a working row. The secret will stay blank until the final addition stage.'
+                      : 'The translation wheel has finished both working rows. Switch to the addition wheel: it combines their characters and writes the result into ' +
+                        (isRecovery ? 'your secret.' : 'share D.')}
                   </p>
                   <BookButton
                     onClick={() => {
@@ -453,30 +584,84 @@ export default function TutorialLesson(props: Props) {
                     }}
                   >
                     {handoff.next.kind === 'translation'
-                      ? 'Use the translation wheel'
-                      : 'Use the addition wheel'}{' '}
+                      ? 'Next: Translation wheel'
+                      : 'Next: Addition wheel'}{' '}
                     →
                   </BookButton>
                 </div>
               )}
               {hasWheel && !done && !handoff && (
                 <>
-                  <output className="tutorial-reading" aria-live="polite">
-                    <strong>{answer ?? '—'}</strong>
-                    <span>
-                      {aligned
-                        ? 'At the highlighted setting'
-                        : 'Your current wheel reading'}
-                      <br />
-                      {primary}{' '}
-                      {kind === 'addition'
-                        ? '+'
-                        : kind === 'recovery'
-                          ? 'with'
-                          : '×'}{' '}
-                      {right}
-                    </span>
-                  </output>
+                  {!example ? (
+                    <div className="tutorial-entry">
+                      <label htmlFor={readingId}>
+                        {kind === 'recovery'
+                          ? 'Setting from the wheel'
+                          : 'Character from the wheel'}
+                      </label>
+                      <Input
+                        id={readingId}
+                        className="tutorial-wheel-character"
+                        value={answer ?? ''}
+                        placeholder="—"
+                        readOnly
+                        aria-describedby={`${readingId}-help`}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            confirmLetter();
+                          }
+                        }}
+                      />
+                      <output
+                        id={`${readingId}-help`}
+                        aria-live="polite"
+                        aria-atomic="true"
+                      >
+                        <span className="sr-only">
+                          Current wheel reading: {answer ?? 'no reading'}.{' '}
+                        </span>
+                        <StableMessage
+                          active={busy ? 0 : canConfirm ? 1 : 2}
+                          messages={[
+                            'Auto-fill is setting the wheel and recording this entry…',
+                            translationPractice
+                              ? `Read ${right} → ${answer}. Confirm ${answer}. Leave the wheel at ${left}.`
+                              : 'Correct setting. Confirm to record this ' +
+                                (kind === 'recovery'
+                                  ? 'factor.'
+                                  : 'character.'),
+                            `Turning the wheel fills this box. Turn to ${left} before you confirm; nothing is recorded yet.`,
+                          ]}
+                        />
+                      </output>
+                      <BookButton
+                        disabled={!canConfirm}
+                        onClick={confirmLetter}
+                      >
+                        {kind === 'recovery'
+                          ? 'Confirm factor'
+                          : 'Confirm character'}
+                      </BookButton>
+                    </div>
+                  ) : (
+                    <output className="tutorial-reading" aria-live="polite">
+                      <strong>{answer ?? '—'}</strong>
+                      <span>
+                        {aligned
+                          ? 'At the highlighted setting'
+                          : 'Your current wheel reading'}
+                        <br />
+                        {primary}{' '}
+                        {kind === 'addition'
+                          ? '+'
+                          : kind === 'recovery'
+                            ? 'with'
+                            : '×'}{' '}
+                        {right}
+                      </span>
+                    </output>
+                  )}
                   <button
                     className="secondary-button"
                     disabled={busy}
@@ -485,23 +670,35 @@ export default function TutorialLesson(props: Props) {
                     {example
                       ? 'Show the correct setting'
                       : kind === 'recovery'
-                        ? 'Find factor for share ' + left
-                        : kind === 'translation' && aligned
-                          ? 'Fill next letter'
-                          : 'Turn & fill next letter'}
+                        ? 'Auto-fill next factor'
+                        : 'Auto-fill next letter'}
                   </button>
-                  {written &&
-                    written.example === example &&
-                    (!example || written.cursor === next.cursor) && (
-                      <output aria-live="polite">
-                        {example
-                          ? 'Example result'
-                          : exercise.steps[written.cursor]?.kind === 'recovery'
-                            ? 'Factor recorded'
-                            : 'Last letter recorded'}
-                        : <b>{written.value}</b>
-                      </output>
-                    )}
+                  {!example && (
+                    <small>
+                      <StableMessage
+                        active={translationPractice && aligned ? 0 : 1}
+                        messages={[
+                          'Auto-fill confirms the next character without turning the wheel.',
+                          'Auto-fill sets the wheel and confirms one entry for you.',
+                        ]}
+                      />
+                    </small>
+                  )}
+                  <output
+                    className="tutorial-recorded"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    <span>
+                      {example
+                        ? 'Example result'
+                        : kind === 'recovery'
+                          ? 'Factor recorded'
+                          : 'Last letter recorded'}
+                      :
+                    </span>
+                    <b>{currentWritten?.value ?? '—'}</b>
+                  </output>
                 </>
               )}
               {error && <p role="alert">{error}</p>}
@@ -511,28 +708,17 @@ export default function TutorialLesson(props: Props) {
                   computer complete this section.
                 </p>
               )}
-              {exercise.verification && !example && (
-                <button
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={complete}
-                >
-                  Auto-complete the paper worksheet
-                </button>
-              )}
               <p className="tutorial-progress">
                 {progress.answers.length === exercise.steps.length
                   ? 'Section complete'
                   : 'The computer checks each finished share. Paper verification is optional under Examples & tools.'}
               </p>
-              <details className="tutorial-explanation">
-                <summary>What is the computer doing?</summary>
-                <p>
-                  {exercise.checksum
-                    ? 'It follows the book’s table lookups, shifts and additions. To create a checksum it works down, then solves upward from SECRETSHARE32. To verify, it uses the complete share and checks that the finishing row is SECRETSHARE32.'
-                    : 'It uses the book’s factors, translates each complete share, and adds the translated characters. Every result is checked against the Codex32 library.'}
-                </p>
-              </details>
+              <MathExplanation
+                exercise={exercise}
+                step={step}
+                column={column}
+                target={target}
+              />
               <button className="text-button" onClick={() => setPaper(true)}>
                 Open the paper worksheet
               </button>

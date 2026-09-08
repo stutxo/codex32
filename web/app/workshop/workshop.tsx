@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
 import BookButton from '@/components/book-button';
+import WorkshopActions from '@/components/workshop-actions';
 import { publicAsset } from '@/lib/public-asset';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -414,7 +415,7 @@ export default function Workshop() {
     onComplete: () => void,
   ) {
     if (!engine || !session || !exercises) return null;
-    const otherIndex = id === 'checksum-A' ? 'C' : 'A';
+    const otherIndex = id.endsWith('-A') ? 'C' : 'A';
     return (
       <TutorialLesson
         key={session.shares.A + session.shares.C + id}
@@ -477,14 +478,14 @@ export default function Workshop() {
         }}
         onContinue={onComplete}
         continueLabel={
-          id.startsWith('checksum-')
-            ? 'Continue to share ' +
+          id.startsWith('checksum-') || id === 'verify-A' || id === 'verify-C'
+            ? 'Next: Share ' +
               (flow.checksums[otherIndex] && shareChecked(flow, otherIndex)
                 ? 'D'
                 : otherIndex)
-            : id === 'derive'
-              ? 'Continue to reveal secret'
-              : 'Continue the tutorial'
+            : id === 'derive' || id === 'verify-D'
+              ? 'Next: Recover secret'
+              : 'Next step'
         }
         onReset={() => updateBook((current) => resetSection(current, id))}
         onSkipPaper={
@@ -639,9 +640,10 @@ export default function Workshop() {
                   </div>
                   <BookHeading text="The shares you created." />
                   <p className="serif-copy">
-                    These are the 26 random characters you created for each
-                    share. They still define the same test key. Your checksum
-                    entries and wheel settings are kept when you change tabs.
+                    These are the 26 random characters for each starting share.
+                    Each share also needs a checksum to help catch copying
+                    mistakes. Your shares and worksheet progress are kept when
+                    you change tabs.
                   </p>
                   <p>
                     This workbook’s four-character name is{' '}
@@ -664,8 +666,9 @@ export default function Workshop() {
                         {exercises && (
                           <div className="saved-full-share">
                             <span>
-                              Complete share · header, random characters,
-                              checksum
+                              {flow.checksums[index]
+                                ? 'Complete share · header, random characters, checksum'
+                                : 'Share so far · ? marks the checksum still to calculate'}
                             </span>
                             <code>
                               {grouped(
@@ -681,25 +684,29 @@ export default function Workshop() {
                       </div>
                     ))}
                   </div>
+                  <WorkshopActions
+                    label={
+                      !flow.checksums.A && !flow.checksums.C
+                        ? 'Next: Checksums'
+                        : 'Resume workbook'
+                    }
+                    description="Review your shares above. Continue when you’re ready; your progress is saved."
+                    onAction={() =>
+                      updateBook((current) => ({
+                        ...current,
+                        example: false,
+                        flow: normalizeWorkshopFlow(
+                          workshopFlow(current.flow, {
+                            type: 'navigate',
+                            phase: 'recover',
+                            reveal: true,
+                          }),
+                          derived,
+                        ),
+                      }))
+                    }
+                  />
                   <div className="saved-key-actions">
-                    <BookButton
-                      onClick={() =>
-                        updateBook((current) => ({
-                          ...current,
-                          example: false,
-                          flow: normalizeWorkshopFlow(
-                            workshopFlow(current.flow, {
-                              type: 'navigate',
-                              phase: 'recover',
-                              reveal: true,
-                            }),
-                            derived,
-                          ),
-                        }))
-                      }
-                    >
-                      Continue this workbook <ArrowRight size={17} />
-                    </BookButton>
                     <button
                       className="text-button"
                       onClick={() => setMakingAnother(true)}
@@ -737,8 +744,13 @@ export default function Workshop() {
                     <div className="tutorial-start-controls">
                       <h2>Begin with a little randomness.</h2>
                       <p>
+                        A share is one part of a backup. Here you’ll create
+                        three practice shares, then recover the complete secret
+                        using any two, even if one is lost.
+                      </p>
+                      <p>
                         Make two starting shares, A and C. Roll a letter to try
-                        it, or generate both shares and move on.
+                        it, or generate both shares to review them.
                       </p>
                       <div className="tutorial-drafts">
                         {['A', 'C'].map((index, row) => (
@@ -765,12 +777,13 @@ export default function Workshop() {
                       >
                         Auto-roll one letter <Dices size={17} />
                       </button>
-                      <BookButton onClick={() => fresh(true)}>
-                        Auto-complete this section <ArrowRight size={17} />
-                      </BookButton>
+                      <WorkshopActions
+                        label="Auto-complete shares"
+                        description="Fills all remaining random characters and shows shares A and C for you to review."
+                        onAction={() => fresh(true)}
+                      />
                       <p className="tutorial-progress">
-                        Two of the final three shares will recover the same
-                        secret.
+                        You’ll calculate the third share, D, later.
                       </p>
                     </div>
                   </section>

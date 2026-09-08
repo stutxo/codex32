@@ -1,9 +1,10 @@
 'use client';
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- The interactive SVG needs its own accessible title and description; an img cannot contain its controls. */
-import { useId, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import AdditionDisc from './addition-disc';
 import RingDisc from './ring-disc';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import StableMessage from './stable-message';
+import { ChevronLeft, ChevronRight, LockKeyhole } from 'lucide-react';
 import {
   NativeSelect,
   NativeSelectOption,
@@ -69,14 +70,24 @@ export default function Wheel({
   guided,
   onTurn = onPrimary,
   showFlip = true,
+  translationGuide,
 }: WheelProps & {
   controls?: boolean;
   factorSide: boolean;
   onFactorSide: (value: boolean) => void;
   guided?: { primary: string; other: string };
   showFlip?: boolean;
+  translationGuide?: {
+    locked: boolean;
+    onAdjust?: () => void;
+    disabled?: boolean;
+  };
 }) {
   const id = useId();
+  const svg = useRef<SVGSVGElement>(null);
+  const adjustButton = useRef<HTMLButtonElement>(null);
+  const turnButton = useRef<HTMLButtonElement>(null);
+  const requestedFocus = useRef<'held' | 'turn' | null>(null);
   const primary =
     (kind === 'translation' || kind === 'fusion') && requestedPrimary === 'Q'
       ? 'P'
@@ -86,6 +97,24 @@ export default function Wheel({
     null,
   );
   const moved = useRef(false);
+  const turningLocked =
+    kind === 'translation' && Boolean(translationGuide?.locked);
+  useEffect(() => {
+    if (!turningLocked) return;
+    const pointer = drag.current?.pointer;
+    if (pointer !== undefined && svg.current?.hasPointerCapture(pointer))
+      svg.current.releasePointerCapture(pointer);
+    drag.current = null;
+    moved.current = true;
+  }, [turningLocked]);
+  // Keep keyboard focus on a useful control when the arrows and Adjust swap.
+  useEffect(() => {
+    if (requestedFocus.current === 'held' && turningLocked)
+      adjustButton.current?.focus();
+    if (requestedFocus.current === 'turn' && !turningLocked)
+      turnButton.current?.focus();
+    requestedFocus.current = null;
+  });
   const order =
     kind === 'recovery'
       ? recoveryOrder(engine, target)
@@ -116,7 +145,7 @@ export default function Wheel({
         ? 'Top-row character'
         : 'Translation factor';
   return (
-    <div className="wheel-tool">
+    <div className="wheel-tool" data-turning-locked={turningLocked}>
       <div className="wheel-heading">
         <span className="small-label">
           {names[face].toUpperCase()} VOLVELLE
@@ -129,7 +158,27 @@ export default function Wheel({
               : '31 positions + zero'}
         </span>
       </div>
+      {translationGuide && guided && (
+        <div
+          className="wheel-translation-legend"
+          aria-label="Two different wheel markings"
+        >
+          <span className="wheel-factor-label">
+            Factor {guided.primary} · handle setting
+          </span>
+          <span className="wheel-read-label">
+            <StableMessage
+              active={other === 'Q' ? 0 : 1}
+              messages={[
+                `Read ${other} · Q↔Q on handle`,
+                `Read ${other} · inner-ring character`,
+              ]}
+            />
+          </span>
+        </div>
+      )}
       <svg
+        ref={svg}
         className="volvelle"
         viewBox={
           kind === 'addition' ? '-300 -300 600 600' : '-240 -240 480 480'
@@ -137,6 +186,7 @@ export default function Wheel({
         role="img"
         aria-labelledby={`${id}-title ${id}-desc`}
         onPointerDown={(event) => {
+          if (turningLocked) return;
           moved.current = false;
           const rect = event.currentTarget.getBoundingClientRect();
           const x = event.clientX - rect.left - rect.width / 2,
@@ -153,6 +203,7 @@ export default function Wheel({
           };
         }}
         onPointerMove={(event) => {
+          if (turningLocked) return;
           if (!drag.current || drag.current.pointer !== event.pointerId) return;
           const rect = event.currentTarget.getBoundingClientRect();
           const current = angleSlot(
@@ -187,11 +238,13 @@ export default function Wheel({
             drag.current = null;
         }}
       >
-        <title id={`${id}-title`}>{names[kind]} wheel</title>
+        <title id={`${id}-title`}>{names[kind] + ' wheel'}</title>
         <desc id={`${id}-desc`}>
-          {guided
-            ? `Drag the disc to turn it. Aim for ${guided.primary}, then read ${guided.other}. The highlighted setting shows the current worksheet calculation.`
-            : `Drag the inner disc to change ${primaryLabel.toLowerCase()}. Read ${other} to get ${answer ?? 'an invalid index pair'}.`}{' '}
+          {turningLocked
+            ? `Wheel held at factor ${primary}. No turning needed. Read ${other} to get ${answer}. The factor marks the handle setting; the read mark identifies the current input, not a new setting.`
+            : guided
+              ? `Drag the disc to turn it. Aim for ${guided.primary}, then read ${guided.other}. The highlighted setting shows the current worksheet calculation.`
+              : `Drag the inner disc to change ${primaryLabel.toLowerCase()}. Read ${other} to get ${answer ?? 'an invalid index pair'}.`}{' '}
           Use the labeled controls beside the worksheet for keyboard access.
         </desc>
         <g id={`${id}-paper`}>
@@ -202,7 +255,7 @@ export default function Wheel({
               other={other}
               guide={discGuide}
               onPrimary={(letter) => {
-                if (!moved.current) onPrimary(letter);
+                if (!turningLocked && !moved.current) onPrimary(letter);
               }}
               onOther={(letter) => {
                 if (!moved.current) onOther(letter);
@@ -215,8 +268,9 @@ export default function Wheel({
               angle={(slot * 360) / count}
               other={other}
               guide={discGuide}
+              distinguishReadout={Boolean(translationGuide)}
               onPrimary={(letter) => {
-                if (!moved.current) onPrimary(letter);
+                if (!turningLocked && !moved.current) onPrimary(letter);
               }}
               onOther={(letter) => {
                 if (!moved.current) onOther(letter);
@@ -225,26 +279,58 @@ export default function Wheel({
           )}
         </g>
       </svg>
-      {kind === 'addition' &&
-        (!guided || (canRead && other === guided.other)) && (
-          <figure className="paper-magnifier">
-            <figcaption>Window {other} · enlarged</figcaption>
-            <svg
-              viewBox={`${window.x - 24} ${window.y - 10} 33 20`}
-              aria-hidden="true"
-            >
-              <use
-                href={`#${id}-paper`}
-                transform={`rotate(${(-slot * 360) / count})`}
-              />
-            </svg>
-          </figure>
+      {kind === 'addition' && (
+        <figure className="paper-magnifier">
+          <figcaption>Window {other} · current reading</figcaption>
+          <svg
+            viewBox={`${window.x - 24} ${window.y - 10} 33 20`}
+            aria-hidden="true"
+          >
+            <use
+              href={`#${id}-paper`}
+              transform={`rotate(${(-slot * 360) / count})`}
+            />
+          </svg>
+        </figure>
+      )}
+      <div className="wheel-turn-slot">
+        {translationGuide && (
+          <div
+            className="wheel-held-notice"
+            aria-hidden={!turningLocked ? true : undefined}
+            inert={!turningLocked}
+          >
+            <span>
+              <LockKeyhole size={17} aria-hidden="true" /> Wheel held at{' '}
+              {primary}
+            </span>
+            {translationGuide?.onAdjust && (
+              <button
+                ref={adjustButton}
+                className="text-button"
+                disabled={translationGuide.disabled}
+                onClick={() => {
+                  requestedFocus.current = 'turn';
+                  translationGuide.onAdjust?.();
+                }}
+              >
+                Adjust wheel
+              </button>
+            )}
+          </div>
         )}
-      {
-        <div className="wheel-turn-buttons">
+        <div
+          className="wheel-turn-buttons"
+          aria-hidden={turningLocked ? true : undefined}
+          inert={turningLocked}
+        >
           <button
+            ref={turnButton}
             className="secondary-button"
-            onClick={() => onTurn(order[nextSlot(slot, -1, count)])}
+            onClick={() => {
+              requestedFocus.current = 'held';
+              onTurn(order[nextSlot(slot, -1, count)]);
+            }}
             aria-label="Turn wheel one position counterclockwise"
           >
             <ChevronLeft size={17} />
@@ -252,16 +338,23 @@ export default function Wheel({
           <span>Drag the disc, or use the arrows to turn it.</span>
           <button
             className="secondary-button"
-            onClick={() => onTurn(order[nextSlot(slot, 1, count)])}
+            onClick={() => {
+              requestedFocus.current = 'held';
+              onTurn(order[nextSlot(slot, 1, count)]);
+            }}
             aria-label="Turn wheel one position clockwise"
           >
             <ChevronRight size={17} />
           </button>
         </div>
-      }
+      </div>
       {guided && (
         <p className="wheel-guided-note">
-          Drag to turn. The gold marks show the setting for this calculation.
+          {turningLocked
+            ? 'Keep the handle fixed. Only the character to read changes.'
+            : translationGuide
+              ? 'Turn the handle to the factor mark. The blue mark is the character to read, not a setting.'
+              : 'Drag to turn. The gold marks show the setting for this calculation.'}
         </p>
       )}
       {kind === 'translation' && showFlip && (
