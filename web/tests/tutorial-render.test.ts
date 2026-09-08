@@ -22,6 +22,26 @@ import {
 
 // Render the real tutorial and its controls, resolving TSX with the installed
 // compiler. Testing only the answer helper missed the recovery-only UI guard.
+// A small hook harness lets us exercise the real pointer handlers without a
+// browser. This checks event wiring/capture, not physical-device touch feel.
+const pointerHookUrl =
+  'data:text/javascript;base64,' +
+  Buffer.from(`
+  let refs = [], effects = [], refIndex = 0, effectIndex = 0, pending = [];
+  export function useRef(value) { return refs[refIndex++] ??= { current: value }; }
+  export function useId() { return 'pointer-test'; }
+  export function useEffect(run, deps) {
+    const i = effectIndex++, prev = effects[i];
+    if (!deps || !prev || deps.some((value, j) => !Object.is(value, prev.deps[j])))
+      pending.push(() => { prev?.cleanup?.(); effects[i] = { deps, cleanup: run() }; });
+  }
+  export function begin() { refIndex = 0; effectIndex = 0; }
+  export function commit() { pending.splice(0).forEach(run => run()); }
+  export function unmount() {
+    effects.forEach(effect => effect?.cleanup?.());
+    refs = []; effects = []; pending = [];
+  }
+`).toString('base64');
 const modules = new Map<string, Promise<string>>();
 function componentUrl(url: URL): Promise<string> {
   if (!url.pathname.endsWith('.tsx')) return Promise.resolve(url.href);
@@ -51,6 +71,8 @@ async function compile(url: URL) {
       ].find((candidate) => existsSync(candidate));
       assert.ok(file, 'Resolve ' + specifier);
       resolved = await componentUrl(file);
+    } else if (specifier === 'react' && url.search === '?pointer-test') {
+      resolved = pointerHookUrl;
     } else resolved = import.meta.resolve(specifier);
     source = source.replace(statement, 'from ' + quote + resolved + quote);
   }
@@ -79,6 +101,186 @@ engine.initSync({
 });
 const session = publishedSession(engine);
 const noop = () => {};
+
+await test('each wheel keeps a single accessible circular grip, including when held', async () => {
+  const Wheel = (
+    await import(
+      await componentUrl(new URL('../app/workshop/wheel.tsx', import.meta.url))
+    )
+  ).default;
+  for (const kind of ['addition', 'recovery', 'translation', 'fusion']) {
+    for (const locked of kind === 'translation' ? [false, true] : [false]) {
+      const markup = renderToStaticMarkup(
+        createElement(Wheel, {
+          engine,
+          kind,
+          primary: 'V',
+          other: 'X',
+          target: 'S',
+          factorSide: false,
+          onPrimary: noop,
+          onOther: noop,
+          onFactorSide: noop,
+          translationGuide:
+            kind === 'translation' ? { locked, onAdjust: noop } : undefined,
+        }),
+      );
+      const grips = [
+        ...markup.matchAll(/<button[^>]*class="wheel-drag-handle"[^>]*>/g),
+      ];
+      assert.equal(
+        grips.length,
+        1,
+        'Never duplicate the grip in the magnifier',
+      );
+      assert.equal(grips[0][0].includes('disabled=""'), locked);
+      assert.match(grips[0][0], /type="button"/);
+      assert.match(grips[0][0], /aria-label="/);
+      assert.match(
+        markup,
+        /class="wheel-surface"><div class="wheel-disc-frame">/,
+      );
+      assert.ok(markup.includes('drag the purple grip around the circle'));
+      assert.ok(!markup.includes('Swipe sideways to turn'));
+    }
+  }
+});
+
+await test('real wheel handlers capture the grip immediately, preserve mouse clicks, and release on lock or unmount', async () => {
+  const hooks = await import(pointerHookUrl);
+  const Wheel = (
+    await import(
+      await componentUrl(
+        new URL('../app/workshop/wheel.tsx?pointer-test', import.meta.url),
+      )
+    )
+  ).default;
+  const captures = new Set<number>();
+  const owner = () => ({
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 320, height: 320 }),
+    setPointerCapture: (id: number) => {
+      captures.add(id);
+    },
+    hasPointerCapture: (id: number) => captures.has(id),
+    releasePointerCapture: (id: number) => {
+      captures.delete(id);
+    },
+  });
+  const svg = owner();
+  const grip = owner();
+  const turns: string[] = [];
+  const props = {
+    engine,
+    kind: 'translation',
+    primary: 'P',
+    other: 'X',
+    target: 'S',
+    factorSide: false,
+    onPrimary: noop,
+    onOther: noop,
+    onFactorSide: noop,
+    onTurn: (letter: string) => turns.push(letter),
+    translationGuide: { locked: false },
+  };
+  // The element tree is inspected before React mounts it; handlers are the
+  // actual component closures, while capture ownership is a controlled stub.
+  type ElementTree = {
+    type: string;
+    props: {
+      className?: string;
+      children?: ElementTree | ElementTree[];
+      ref: { current: typeof svg };
+    } & Record<
+      | 'onPointerDown'
+      | 'onPointerUp'
+      | 'onPointerMove'
+      | 'onPointerLeave'
+      | 'onPointerCancel'
+      | 'onPointerDownCapture',
+      (pointer: ReturnType<typeof event>) => void
+    >;
+  };
+  function find(node: ElementTree, className: string): ElementTree | undefined {
+    if (node.props?.className === className) return node;
+    const children = Array.isArray(node.props?.children)
+      ? node.props.children
+      : [node.props?.children];
+    for (const child of children) {
+      if (child && typeof child === 'object') {
+        const found = find(child, className);
+        if (found) return found;
+      }
+    }
+  }
+  function render() {
+    hooks.begin();
+    const tree = Wheel(props);
+    const disc = find(tree, 'volvelle')!;
+    disc.props.ref.current = svg;
+    hooks.commit();
+    return { tree, disc, handle: find(tree, 'wheel-drag-handle')! };
+  }
+  const event = (currentTarget: typeof svg, changes = {}) => ({
+    currentTarget,
+    target: currentTarget,
+    pointerId: 1,
+    pointerType: 'touch',
+    isPrimary: true,
+    button: 0,
+    clientX: 320,
+    clientY: 160,
+    ...changes,
+  });
+  try {
+    let ui = render();
+    ui.disc.props.onPointerDown(event(svg, { pointerType: 'mouse' }));
+    assert.equal(
+      captures.size,
+      0,
+      'A mouse label click must not be retargeted',
+    );
+    ui.disc.props.onPointerUp(event(svg, { pointerType: 'mouse' }));
+    assert.equal(turns.length, 0);
+    ui.handle.props.onPointerDown(event(grip));
+    assert.equal(captures.has(1), true, 'Grip captures before movement begins');
+    ui.handle.props.onPointerMove(event(grip, { clientX: 160, clientY: 320 }));
+    assert.equal(turns.length, 1);
+    props.primary = turns.at(-1)!;
+    ui = render();
+    assert.equal(captures.has(1), true, 'A slot rerender preserves capture');
+    ui.handle.props.onPointerLeave(event(grip));
+    assert.equal(
+      captures.has(1),
+      true,
+      'Leaving the grip while captured keeps turning',
+    );
+    ui.handle.props.onPointerUp(event(grip, { clientX: 0, clientY: 160 }));
+    assert.equal(turns.length, 2, 'The final pointerup movement is recorded');
+    assert.equal(captures.size, 0);
+    ui.handle.props.onPointerDown(event(grip));
+    props.translationGuide.locked = true;
+    ui = render();
+    assert.equal(captures.size, 0, 'Holding a factor releases capture');
+    ui.handle.props.onPointerMove(event(grip, { clientX: 160, clientY: 320 }));
+    assert.equal(turns.length, 2);
+    props.translationGuide.locked = false;
+    ui = render();
+    ui.handle.props.onPointerDown(event(grip));
+    ui.tree.props.onPointerDownCapture(
+      event(svg, { pointerId: 2, isPrimary: false }),
+    );
+    assert.equal(captures.size, 0, 'A second touch cancels turning');
+    ui.handle.props.onPointerDown(event(grip));
+    ui.handle.props.onPointerCancel(event(grip));
+    assert.equal(captures.size, 0);
+    ui.handle.props.onPointerDown(event(grip));
+    hooks.unmount();
+    assert.equal(captures.size, 0, 'Unmount releases the active grip');
+  } finally {
+    hooks.unmount();
+  }
+});
+
 function activeToolbar(markup: string, className: string) {
   const toolbar = markup.match(
     new RegExp(`<div class="${className}"[^>]*>`),

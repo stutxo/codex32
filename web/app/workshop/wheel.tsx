@@ -1,10 +1,10 @@
 'use client';
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- The interactive SVG needs its own accessible title and description; an img cannot contain its controls. */
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, type PointerEvent } from 'react';
 import AdditionDisc from './addition-disc';
 import RingDisc from './ring-disc';
 import StableMessage from './stable-message';
-import { ChevronLeft, ChevronRight, LockKeyhole } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Grip, LockKeyhole } from 'lucide-react';
 import {
   NativeSelect,
   NativeSelectOption,
@@ -99,17 +99,10 @@ export default function Wheel({
       : requestedPrimary;
   const face = kind === 'translation' && factorSide ? 'fusion' : kind;
   const drag = useRef<WheelDrag | null>(null);
+  const capture = useRef<Element | null>(null);
   const moved = useRef(false);
   const turningLocked =
     kind === 'translation' && Boolean(translationGuide?.locked);
-  useEffect(() => {
-    if (!turningLocked) return;
-    const pointer = drag.current?.pointer;
-    if (pointer !== undefined && svg.current?.hasPointerCapture(pointer))
-      svg.current.releasePointerCapture(pointer);
-    drag.current = null;
-    moved.current = true;
-  }, [turningLocked]);
   // Keep keyboard focus on a useful control when the arrows and Adjust swap.
   useEffect(() => {
     if (requestedFocus.current === 'held' && turningLocked)
@@ -128,6 +121,79 @@ export default function Wheel({
           : wheelData.translationOrder;
   const slot = selectedSlot(order, primary);
   const count = order.length;
+  // A captured gesture survives slot rerenders, but not a different wheel or
+  // a newly held factor. Release the actual owner (grip or SVG), also on unmount.
+  useEffect(() => {
+    return () => {
+      const pointer = drag.current?.pointer;
+      const owner = capture.current;
+      drag.current = null;
+      capture.current = null;
+      moved.current = true;
+      if (pointer !== undefined && owner?.hasPointerCapture(pointer))
+        owner.releasePointerCapture(pointer);
+    };
+  }, [turningLocked, kind, face, target, order]);
+  function endDrag(cancelled = false) {
+    const pointer = drag.current?.pointer;
+    const owner = capture.current;
+    drag.current = null;
+    capture.current = null;
+    moved.current ||= cancelled;
+    if (pointer !== undefined && owner?.hasPointerCapture(pointer))
+      owner.releasePointerCapture(pointer);
+  }
+  type WheelPointer = PointerEvent<SVGSVGElement | HTMLButtonElement>;
+  function startDrag(event: WheelPointer, surface: 'disc' | 'handle') {
+    if (!event.isPrimary || turningLocked || !svg.current) return;
+    endDrag();
+    moved.current = false;
+    drag.current = beginWheelDrag(
+      event,
+      svg.current.getBoundingClientRect(),
+      slot,
+      count,
+      surface,
+    );
+    if (surface === 'handle' && drag.current?.intent === 'turn') {
+      capture.current = event.currentTarget;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }
+  function updateDrag(event: WheelPointer) {
+    if (turningLocked || drag.current?.pointer !== event.pointerId) return;
+    const next = moveWheelDrag(drag.current, event);
+    moved.current ||= drag.current.moved;
+    if (next !== null) {
+      // A mouse click on a printed character must stay on that character.
+      // Capture artwork only after it becomes a drag; grips capture at start.
+      if (!capture.current) {
+        capture.current = event.currentTarget;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+      onTurn(order[next]);
+    }
+  }
+  const pointerHandlers = {
+    onPointerMove: updateDrag,
+    onPointerUp(event: WheelPointer) {
+      if (drag.current?.pointer !== event.pointerId) return;
+      // Some devices deliver their final movement only with pointerup.
+      updateDrag(event);
+      endDrag();
+    },
+    onPointerCancel(event: WheelPointer) {
+      if (drag.current?.pointer === event.pointerId) endDrag(true);
+    },
+    onLostPointerCapture(event: WheelPointer) {
+      if (lostWheelCapture(drag.current, event)) endDrag(true);
+    },
+    onPointerLeave(event: WheelPointer) {
+      if (drag.current?.pointer !== event.pointerId) return;
+      if (!capture.current?.hasPointerCapture(event.pointerId)) endDrag(true);
+    },
+  };
+  const gripAngle = (slot * Math.PI * 2) / count - Math.PI / 2;
   const answer = wheelAnswer(engine, kind, primary, other, target);
   const window = additionWindows.find((item) => item.letter === other)!;
   const isMultiplication = kind === 'translation' || kind === 'fusion';
@@ -148,7 +214,13 @@ export default function Wheel({
         ? 'Top-row character'
         : 'Translation factor';
   return (
-    <div className="wheel-tool" data-turning-locked={turningLocked}>
+    <div
+      className="wheel-tool"
+      data-turning-locked={turningLocked}
+      onPointerDownCapture={(event) => {
+        if (!event.isPrimary) endDrag(true);
+      }}
+    >
       <div className="wheel-heading">
         <span className="small-label">
           {names[face].toUpperCase()} VOLVELLE
@@ -180,114 +252,97 @@ export default function Wheel({
           </span>
         </div>
       )}
-      <svg
-        ref={svg}
-        className="volvelle"
-        viewBox={
-          kind === 'addition' ? '-300 -300 600 600' : '-240 -240 480 480'
-        }
-        role="img"
-        aria-labelledby={`${id}-title ${id}-desc`}
-        onPointerDown={(event) => {
-          if (!event.isPrimary) {
-            const pointer = drag.current?.pointer;
-            drag.current = null;
-            moved.current = true;
-            if (
-              pointer !== undefined &&
-              event.currentTarget.hasPointerCapture(pointer)
-            )
-              event.currentTarget.releasePointerCapture(pointer);
-            return;
-          }
-          if (turningLocked) return;
-          moved.current = false;
-          drag.current = beginWheelDrag(
-            event,
-            event.currentTarget.getBoundingClientRect(),
-            slot,
-            count,
-          );
-        }}
-        onPointerMove={(event) => {
-          if (turningLocked) return;
-          if (!drag.current || drag.current.pointer !== event.pointerId) return;
-          const next = moveWheelDrag(drag.current, event);
-          moved.current ||= drag.current.moved;
-          if (next === null) return;
-          // Native scrolling is never captured; only an intentional turn is.
-          if (!event.currentTarget.hasPointerCapture(event.pointerId))
-            event.currentTarget.setPointerCapture(event.pointerId);
-          onTurn(order[next]);
-        }}
-        onPointerUp={(event) => {
-          if (drag.current?.pointer !== event.pointerId) return;
-          // Some devices deliver the final movement only with pointerup.
-          const next = moveWheelDrag(drag.current, event);
-          moved.current ||= drag.current.moved;
-          drag.current = null;
-          if (event.currentTarget.hasPointerCapture(event.pointerId))
-            event.currentTarget.releasePointerCapture(event.pointerId);
-          if (!turningLocked && next !== null) onTurn(order[next]);
-        }}
-        onPointerCancel={(event) => {
-          if (drag.current?.pointer !== event.pointerId) return;
-          drag.current = null;
-          moved.current = true;
-        }}
-        onLostPointerCapture={(event) => {
-          if (!lostWheelCapture(drag.current, event)) return;
-          drag.current = null;
-          moved.current = true;
-        }}
-        onPointerLeave={(event) => {
-          if (drag.current?.pointer !== event.pointerId) return;
-          if (!event.currentTarget.hasPointerCapture(event.pointerId))
-            drag.current = null;
-        }}
-      >
-        <title id={`${id}-title`}>{names[kind] + ' wheel'}</title>
-        <desc id={`${id}-desc`}>
-          {turningLocked
-            ? `Wheel held at factor ${primary}. No turning needed. Read ${other} to get ${answer}. The factor marks the handle setting; the read mark identifies the current input, not a new setting.`
-            : guided
-              ? `Drag the disc to turn it. Aim for ${guided.primary}, then read ${guided.other}. The highlighted setting shows the current worksheet calculation.`
-              : `Drag the inner disc to change ${primaryLabel.toLowerCase()}. Read ${other} to get ${answer ?? 'an invalid index pair'}.`}{' '}
-          On a touchscreen, drag sideways to turn; swipe up or down to scroll.
-          Use the labeled controls beside the worksheet for keyboard access.
-        </desc>
-        <g id={`${id}-paper`}>
-          {kind === 'addition' ? (
-            <AdditionDisc
-              id={id}
-              angle={(slot * 360) / count}
-              other={other}
-              guide={discGuide}
-              onPrimary={(letter) => {
-                if (!turningLocked && !moved.current) onPrimary(letter);
-              }}
-              onOther={(letter) => {
-                if (!moved.current) onOther(letter);
-              }}
-            />
-          ) : (
-            <RingDisc
-              kind={face as 'recovery' | 'translation' | 'fusion'}
-              order={order}
-              angle={(slot * 360) / count}
-              other={other}
-              guide={discGuide}
-              distinguishReadout={Boolean(translationGuide)}
-              onPrimary={(letter) => {
-                if (!turningLocked && !moved.current) onPrimary(letter);
-              }}
-              onOther={(letter) => {
-                if (!moved.current) onOther(letter);
-              }}
-            />
-          )}
-        </g>
-      </svg>
+      <div className="wheel-surface">
+        <div className="wheel-disc-frame">
+          <svg
+            ref={svg}
+            className="volvelle"
+            viewBox={
+              kind === 'addition' ? '-300 -300 600 600' : '-240 -240 480 480'
+            }
+            role="img"
+            aria-labelledby={`${id}-title ${id}-desc`}
+            onPointerDown={(event) => startDrag(event, 'disc')}
+            {...pointerHandlers}
+          >
+            <title id={`${id}-title`}>{names[kind] + ' wheel'}</title>
+            <desc id={`${id}-desc`}>
+              {turningLocked
+                ? `Wheel held at factor ${primary}. No turning needed. Read ${other} to get ${answer}. The factor marks the handle setting; the read mark identifies the current input, not a new setting.`
+                : guided
+                  ? `Drag the disc to turn it. Aim for ${guided.primary}, then read ${guided.other}. The highlighted setting shows the current worksheet calculation.`
+                  : `Drag the inner disc to change ${primaryLabel.toLowerCase()}. Read ${other} to get ${answer ?? 'an invalid index pair'}.`}{' '}
+              On a touchscreen, drag the purple grip around the circle to turn.
+              Swipe elsewhere on the wheel to scroll. Use the labeled controls
+              beside the worksheet for keyboard access.
+            </desc>
+            <g id={`${id}-paper`}>
+              {kind === 'addition' ? (
+                <AdditionDisc
+                  id={id}
+                  angle={(slot * 360) / count}
+                  other={other}
+                  guide={discGuide}
+                  onPrimary={(letter) => {
+                    if (!turningLocked && !moved.current) onPrimary(letter);
+                  }}
+                  onOther={(letter) => {
+                    if (!moved.current) onOther(letter);
+                  }}
+                />
+              ) : (
+                <RingDisc
+                  kind={face as 'recovery' | 'translation' | 'fusion'}
+                  order={order}
+                  angle={(slot * 360) / count}
+                  other={other}
+                  guide={discGuide}
+                  distinguishReadout={Boolean(translationGuide)}
+                  onPrimary={(letter) => {
+                    if (!turningLocked && !moved.current) onPrimary(letter);
+                  }}
+                  onOther={(letter) => {
+                    if (!moved.current) onOther(letter);
+                  }}
+                />
+              )}
+            </g>
+          </svg>
+          <button
+            type="button"
+            className="wheel-drag-handle"
+            style={{
+              left: `${50 + 50 * Math.cos(gripAngle)}%`,
+              top: `${50 + 50 * Math.sin(gripAngle)}%`,
+            }}
+            disabled={turningLocked}
+            aria-label={
+              turningLocked
+                ? `Wheel held at ${primary}`
+                : 'Turn wheel clockwise, or drag the purple grip around the circle'
+            }
+            title={
+              turningLocked
+                ? 'No turning needed'
+                : 'Drag around the circle to turn'
+            }
+            onPointerDown={(event) => startDrag(event, 'handle')}
+            {...pointerHandlers}
+            onClick={() => {
+              if (!moved.current) onTurn(order[nextSlot(slot, 1, count)]);
+            }}
+            onKeyDown={() => {
+              moved.current = false;
+            }}
+          >
+            {turningLocked ? (
+              <LockKeyhole size={20} aria-hidden="true" />
+            ) : (
+              <Grip size={20} aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </div>
       {kind === 'addition' && (
         <figure className="paper-magnifier">
           <figcaption>Window {other} · current reading</figcaption>
@@ -349,8 +404,8 @@ export default function Wheel({
               Drag the disc, or use the arrows to turn it.
             </span>
             <span className="wheel-touch-hint">
-              Swipe sideways to turn, or use the arrows. Swipe up or down to
-              scroll.
+              Drag the purple grip around the circle to turn. Swipe elsewhere to
+              scroll, or use the arrows to turn.
             </span>
           </span>
           <button

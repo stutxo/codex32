@@ -17,33 +17,35 @@ const pointer = (change = {}) => ({
   clientY: 60,
   ...change,
 });
-const begin = (change = {}, slot = 0, count = 32) => {
-  const drag = beginWheelDrag(pointer(change), bounds, slot, count);
+const atAngle = (angle: number, radius = 176) =>
+  pointer({
+    clientX: 170 + radius * Math.cos(angle),
+    clientY: 180 + radius * Math.sin(angle),
+  });
+const begin = (
+  change = {},
+  slot = 0,
+  count = 32,
+  surface: 'handle' | 'disc' = 'handle',
+) => {
+  const drag = beginWheelDrag(pointer(change), bounds, slot, count, surface);
   assert.ok(drag);
   return drag;
 };
 
-await test('vertical and diagonal touch gestures scroll without selecting a letter', () => {
-  for (const start of [
-    { clientX: 170, clientY: 60 },
-    { clientX: 310, clientY: 180 },
-    { clientX: 60, clientY: 180 },
-    { clientX: 190, clientY: 180 },
-  ]) {
+await test('all touch and pen gestures on artwork scroll without turning or selecting a letter', () => {
+  for (const pointerType of ['touch', 'pen']) {
     for (const [dx, dy] of [
       [0, 30],
       [20, 30],
       [20, -20],
-      [24, 20],
+      [40, 0],
     ]) {
-      const drag = begin(start);
+      const drag = begin({ pointerType }, 0, 32, 'disc');
       assert.equal(
         moveWheelDrag(
           drag,
-          pointer({
-            clientX: start.clientX + dx,
-            clientY: start.clientY + dy,
-          }),
+          pointer({ pointerType, clientX: 170 + dx, clientY: 60 + dy }),
         ),
         null,
       );
@@ -55,69 +57,76 @@ await test('vertical and diagonal touch gestures scroll without selecting a lett
         'Scrolling must not become a character tap',
       );
       assert.equal(
-        moveWheelDrag(
-          drag,
-          pointer({
-            clientX: start.clientX + 100,
-            clientY: start.clientY + dy,
-          }),
-        ),
+        moveWheelDrag(drag, atAngle(Math.PI)),
         null,
-        'A scroll never becomes rotation later in the gesture',
+        'A scroll never becomes a turn',
       );
     }
   }
 });
 
-await test('touch jitter remains a tap, while sideways swipes turn from any disc position', () => {
-  const tap = begin();
-  assert.equal(
-    moveWheelDrag(tap, pointer({ clientX: 174, clientY: 62 })),
-    null,
-  );
-  assert.equal(tap.moved, false);
-  assert.equal(tap.intent, 'pending');
-  for (const [clientX, clientY] of [
-    [170, 60],
-    [310, 180],
-    [60, 180],
-  ]) {
-    const drag = begin({ clientX, clientY });
+await test('vertical movement at the right-hand grip immediately turns clockwise', () => {
+  const start = atAngle(0, 140);
+  const grip = begin(start);
+  const artwork = begin(start, 0, 32, 'disc');
+  const next = pointer({ clientX: start.clientX, clientY: start.clientY + 40 });
+  assert.equal(moveWheelDrag(grip, next), 1);
+  assert.equal(moveWheelDrag(artwork, next), null);
+  assert.equal(moveWheelDrag(grip, atAngle(Math.PI / 2)), 8);
+});
+
+await test('circular touch and pen turns follow either direction from every quadrant across multiple revolutions', () => {
+  for (const pointerType of ['touch', 'pen']) {
+    for (const count of [31, 32]) {
+      for (const start of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        for (const direction of [-1, 1]) {
+          const drag = begin(
+            { ...atAngle(start), pointerType },
+            count - 1,
+            count,
+          );
+          for (let step = 1; step <= count * 3; step++) {
+            const angle = start + (direction * step * Math.PI * 2) / count;
+            const expected =
+              (((count - 1 + direction * step) % count) + count) % count;
+            assert.equal(
+              moveWheelDrag(drag, { ...atAngle(angle), pointerType }),
+              expected,
+            );
+          }
+        }
+      }
+    }
+  }
+});
+
+await test('small movements near a sector boundary do not cause a one-letter jump', () => {
+  for (const count of [31, 32]) {
+    const boundary = Math.PI / count;
+    const drag = begin(atAngle(boundary - 0.001), 0, count);
+    assert.equal(moveWheelDrag(drag, atAngle(boundary + 0.001)), null);
+    assert.equal(drag.lastSlot, 0);
+    assert.equal(drag.moved, false);
     assert.equal(
-      moveWheelDrag(drag, pointer({ clientX: clientX + 40, clientY })),
-      2,
+      moveWheelDrag(drag, atAngle(boundary + (Math.PI * 2) / count)),
+      1,
     );
-    assert.equal(drag.intent, 'turn');
-    assert.equal(drag.moved, true);
     assert.equal(
-      moveWheelDrag(drag, pointer({ clientX: clientX + 42, clientY })),
+      moveWheelDrag(drag, atAngle(boundary + (Math.PI * 2) / count)),
       null,
     );
-    assert.equal(
-      moveWheelDrag(
-        drag,
-        pointer({ clientX: clientX + 80, clientY: clientY + 40 }),
-      ),
-      4,
-    );
   }
 });
 
-await test('touch turns wrap both ways on 31- and 32-position wheels', () => {
-  for (const count of [31, 32]) {
-    const right = begin({}, count - 1, count);
-    assert.equal(moveWheelDrag(right, pointer({ clientX: 190 })), 0);
-    const left = begin({}, 0, count);
-    assert.equal(moveWheelDrag(left, pointer({ clientX: 150 })), count - 1);
-    assert.equal(
-      moveWheelDrag(left, pointer({ clientX: 170 - 20 * (count + 2) })),
-      count - 2,
-    );
-  }
+await test('explicit grip starts include the entire outside-rim hit target', () => {
+  const start = atAngle(0, 200);
+  assert.equal(beginWheelDrag(start, bounds, 0, 32, 'disc'), null);
+  const drag = begin(start);
+  assert.equal(moveWheelDrag(drag, atAngle(Math.PI / 2, 220)), 8);
 });
 
-await test('mouse dragging remains angular and only emits changed positions', () => {
-  const drag = begin({ pointerType: 'mouse' });
+await test('mouse dragging remains angular, including a final pointerup-only movement', () => {
+  const drag = begin({ pointerType: 'mouse' }, 0, 32, 'disc');
   assert.equal(
     moveWheelDrag(drag, pointer({ pointerType: 'mouse', clientY: 62 })),
     null,
@@ -129,62 +138,86 @@ await test('mouse dragging remains angular and only emits changed positions', ()
     ),
     8,
   );
-  assert.equal(
-    moveWheelDrag(
-      drag,
-      pointer({ pointerType: 'mouse', clientX: 288, clientY: 180 }),
-    ),
-    null,
-  );
   assert.equal(moveWheelDrag(drag, pointer({ pointerType: 'mouse' })), 0);
 });
 
-await test('secondary pointers and invalid starts never drive the active wheel', () => {
+await test('secondary pointers, right clicks, and central starts cannot drive the wheel', () => {
   for (const change of [
     { isPrimary: false },
     { button: 2 },
     { clientX: 170, clientY: 180 },
-    { clientX: 500 },
   ])
-    assert.equal(beginWheelDrag(pointer(change), bounds, 0, 32), null);
+    assert.equal(
+      beginWheelDrag(pointer(change), bounds, 0, 32, 'handle'),
+      null,
+    );
   const drag = begin();
   assert.equal(
     moveWheelDrag(drag, pointer({ pointerId: 2, clientX: 230 })),
     null,
   );
-  assert.equal(drag.intent, 'pending');
   assert.equal(drag.moved, false);
+  assert.equal(
+    moveWheelDrag(drag, pointer({ clientX: 170, clientY: 180 })),
+    null,
+    'Avoid undefined angles at the pivot',
+  );
+  assert.equal(drag.lastSlot, 0);
 });
 
-await test('implicit capture transfer from an SVG child does not end the wheel drag', () => {
-  const svg = new EventTarget();
-  const label = new EventTarget();
+await test('implicit capture transfer from a child does not end the active drag', () => {
+  const owner = new EventTarget();
+  const child = new EventTarget();
   const drag = begin();
   assert.equal(
-    lostWheelCapture(drag, { pointerId: 1, target: label, currentTarget: svg }),
+    lostWheelCapture(drag, {
+      pointerId: 1,
+      target: child,
+      currentTarget: owner,
+    }),
     false,
   );
   assert.equal(
-    lostWheelCapture(drag, { pointerId: 2, target: svg, currentTarget: svg }),
+    lostWheelCapture(drag, {
+      pointerId: 2,
+      target: owner,
+      currentTarget: owner,
+    }),
     false,
   );
   assert.equal(
-    lostWheelCapture(drag, { pointerId: 1, target: svg, currentTarget: svg }),
+    lostWheelCapture(drag, {
+      pointerId: 1,
+      target: owner,
+      currentTarget: owner,
+    }),
     true,
   );
   assert.equal(
-    lostWheelCapture(null, { pointerId: 1, target: svg, currentTarget: svg }),
+    lostWheelCapture(null, {
+      pointerId: 1,
+      target: owner,
+      currentTarget: owner,
+    }),
     false,
   );
 });
 
-await test('every wheel allows native vertical scrolling and pinch zoom, even when locked', async () => {
+await test('only the explicit grip blocks native scrolling; its full orbit has reserved space', async () => {
   const css = await readFile(
     new URL('../app/workshop/workshop.css', import.meta.url),
     'utf8',
   );
   assert.match(css, /\.volvelle\s*\{[^}]*touch-action: pan-y pinch-zoom;/);
-  const overrides = [...css.matchAll(/touch-action:\s*([^;]+);/g)];
-  assert.ok(overrides.every((match) => match[1] === 'pan-y pinch-zoom'));
-  assert.match(css, /@media \(any-pointer: coarse\)\s*\{\s*\.wheel-mouse-hint/);
+  assert.match(
+    css,
+    /\.wheel-drag-handle\s*\{[^}]*width: 48px;[^}]*height: 48px;[^}]*touch-action: none;/,
+  );
+  assert.match(
+    css,
+    /\.wheel-drag-handle:disabled\s*\{[^}]*touch-action: pan-y pinch-zoom;/,
+  );
+  assert.match(css, /\.wheel-drag-handle > \*\s*\{[^}]*pointer-events: none;/);
+  assert.match(css, /\.wheel-surface\s*\{[^}]*padding: 24px;/);
+  assert.equal([...css.matchAll(/touch-action:\s*none;/g)].length, 1);
 });
