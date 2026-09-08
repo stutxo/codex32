@@ -72,7 +72,7 @@ export default function ManualLesson({
     unknown: boolean;
   } | null>(null);
   const focusPrompt = useRef(false);
-  const givenCount = exercise.steps[0]?.id === 'endpoint' ? 1 : 0;
+  const givenCount = 0;
   const at = example
     ? Math.max(
         givenCount,
@@ -335,7 +335,7 @@ export default function ManualLesson({
             </div>
             {step.id === 'prefill' && !exercise.verification && (
               <aside className="checksum-givens">
-                <strong>The book’s fixed rows are already filled in.</strong>
+                <strong>You copied the book’s fixed bottom row.</strong>
                 <p>
                   <code>SECRETSHARE32</code> is the fixed target: a valid
                   share’s checksum calculation ends at this row. We use it at

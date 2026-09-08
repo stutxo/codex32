@@ -15,6 +15,8 @@ import {
 } from '../lib/workbook.ts';
 import {
   confirmTutorialReading,
+  autoStage,
+  openNextStage,
   tutorialCalculation,
   finishTutorialReading,
   instrumentHandoff,
@@ -378,7 +380,12 @@ await test('changing guidance reserves every message while exposing only the cur
 await test('the enlarged addition window and recorded result slot remain present between readings', () => {
   for (const verification of [false, true]) {
     const exercise = checksumExercise(engine, session.shares.A, verification);
-    let progress = tutorialCalculation(exercise, emptyLesson(), 'S');
+    let progress: ReturnType<typeof emptyLesson> = {
+      ...emptyLesson(),
+      cursor: 1,
+      answers: [exercise.steps[0].answer],
+      tutorialStage: exercise.steps[1].id,
+    };
     for (let index = 0; index < 5; index++) {
       const preview = tutorialCalculation(exercise, progress, 'S');
       const step = exercise.steps[preview.cursor];
@@ -552,179 +559,89 @@ await test('checksum help distinguishes creating check characters from verifying
   }
 });
 
-await test('translation holds the factor while reading new characters and unlocks for the next share', () => {
+await test('each translation row starts on fusion, flips explicitly, and then keeps its factor held', () => {
   for (const [exercise, target] of [
     [shareExercise(engine, session, ['A', 'C'], 'D'), 'D'],
     [shareExercise(engine, session, ['A', 'C'], 'S'), 'S'],
     [shareExercise(engine, session, ['A', 'D'], 'S'), 'S'],
     [shareExercise(engine, session, ['C', 'D'], 'S'), 'S'],
   ] as const) {
-    const first = exercise.steps.findIndex(
-      (step) => step.kind === 'translation',
-    );
-    const props = {
-      engine,
-      exercise,
-      target,
-      session,
-      example: false,
-      active: true,
-      onChange: noop,
-      onComplete: noop,
-      onContinue: noop,
-      onReset: noop,
-      continueLabel: 'Next',
-    };
-    const render = (
-      progress: ReturnType<typeof emptyLesson>,
-      example = false,
-    ) =>
+    const render = (progress: ReturnType<typeof emptyLesson>) =>
       renderToStaticMarkup(
-        createElement(TutorialLesson, { ...props, progress, example }),
+        createElement(TutorialLesson, {
+          engine,
+          exercise,
+          target,
+          session,
+          progress,
+          example: false,
+          active: true,
+          onChange: noop,
+          onComplete: noop,
+          onContinue: noop,
+          onReset: noop,
+          continueLabel: 'Next',
+        }),
       );
-    const rotation = (markup: string) =>
-      markup.match(/class="ring-top-disc" transform="([^"]+)"/)?.[1];
-    let progress = {
-      ...emptyLesson(),
-      cursor: first,
-      answers: exercise.steps.slice(0, first).map((step) => step.answer),
-      primary: exercise.steps[first].left!,
-      tutorialStage: exercise.steps[first].id,
-    };
-    let initialRotation: string | undefined;
-    // Every translation row uses manual confirmation at one fixed setting.
-    while (exercise.steps[progress.cursor]?.id.endsWith('-translate-0')) {
-      const step = exercise.steps[progress.cursor];
-      const markup = render(progress);
-      assert.ok(!markup.includes('Auto-fill next letter'));
-      assert.ok(!markup.includes('Auto-fill sets the wheel'));
-      assert.ok(markup.includes('>Confirm character</button>'));
-      assert.ok(markup.includes('data-turning-locked="true"'));
-      assert.ok(markup.includes('no turning needed'));
-      assert.ok(markup.includes('>Adjust wheel</button>'));
-      assert.ok(!activeToolbar(markup, 'wheel-turn-buttons'));
-      assert.ok(activeToolbar(markup, 'wheel-held-notice'));
-      assert.ok(markup.includes('data-wheel-mark="factor"'));
-      assert.ok(markup.includes('data-wheel-mark="read"'));
-      assert.ok(
-        markup.includes(
-          'Read ' +
-            step.right +
-            ' → ' +
-            step.answer +
-            '. Confirm ' +
-            step.answer,
-        ),
+    let progress = autoStage(exercise, emptyLesson()).progress;
+    for (const row of ['0', '1']) {
+      assert.ok(instrumentHandoff(exercise, progress));
+      const completed = render(progress);
+      assert.ok(completed.includes('Step complete. Review it'));
+      assert.ok(completed.includes('Next: Fusion side'));
+      progress = openNextStage(exercise, progress);
+      const factor = exercise.steps[progress.cursor].left!;
+      const fusion = render(progress);
+      assert.ok(fusion.includes('FUSION VOLVELLE'));
+      assert.ok(fusion.includes('Auto-set this factor'));
+      assert.ok(fusion.includes('Next: Flip to translation'));
+      assert.ok(fusion.includes('data-turning-locked="false"'));
+      assert.match(
+        fusion,
+        /<button[^>]*disabled=""[^>]*>Confirm character<\/button>/,
       );
-      initialRotation ??= rotation(markup);
+      progress = { ...progress, primary: factor };
       assert.equal(
-        rotation(markup),
-        initialRotation,
-        'Only the read highlight moves',
+        confirmTutorialReading(engine, exercise, progress, target).correct,
+        false,
       );
-      const result = confirmTutorialReading(engine, exercise, progress, target);
-      assert.equal(result.correct, true);
-      progress = {
-        ...restoreLesson(exercise, result.progress),
-        tutorialStage: progress.tutorialStage,
-      };
-    }
-    const nextShare = exercise.steps[progress.cursor];
-    assert.ok(nextShare.id.endsWith('-translate-1'));
-    const changed = render(progress);
-    assert.ok(!changed.includes('Auto-fill next letter'));
-    assert.ok(
-      /<button\b[^>]*disabled=""[^>]*>Confirm character<\/button>/.test(
-        changed,
-      ),
-    );
-    assert.ok(changed.includes('data-turning-locked="false"'));
-    assert.ok(activeToolbar(changed, 'wheel-turn-buttons'));
-    assert.ok(
-      changed.includes('Set the handle to factor <b>' + nextShare.left),
-    );
-    assert.equal(
-      rotation(changed),
-      initialRotation,
-      'Changing shares must not turn the wheel automatically',
-    );
-    assert.equal(
-      confirmTutorialReading(engine, exercise, progress, target).correct,
-      false,
-    );
-    const aligned = { ...progress, primary: nextShare.left! };
-    assert.ok(render(aligned).includes('data-turning-locked="true"'));
-    assert.equal(
-      confirmTutorialReading(engine, exercise, aligned, target).correct,
-      true,
-    );
-    {
-      let secondRow = aligned;
-      const secondRotation = rotation(render(secondRow));
-      while (exercise.steps[secondRow.cursor]?.id.endsWith('-translate-1')) {
-        const markup = render(secondRow);
-        assert.ok(!markup.includes('Auto-fill next letter'));
-        assert.ok(!markup.includes('Auto-fill sets the wheel'));
-        assert.ok(markup.includes('>Confirm character</button>'));
-        assert.equal(rotation(markup), secondRotation);
+      progress = { ...progress, factorSide: false };
+      let rotation: string | undefined;
+      while (
+        exercise.steps[progress.cursor]?.id.endsWith('-translate-' + row)
+      ) {
+        const markup = render(progress);
+        const step = exercise.steps[progress.cursor];
+        assert.ok(markup.includes('Auto-fill next letter'));
+        assert.ok(markup.includes('Auto-fill this step'));
+        assert.ok(markup.includes('data-turning-locked="true"'));
+        assert.ok(markup.includes('no turning needed'));
+        assert.ok(markup.includes('>Adjust wheel</button>'));
+        assert.ok(!activeToolbar(markup, 'wheel-turn-buttons'));
+        assert.ok(activeToolbar(markup, 'wheel-held-notice'));
+        assert.ok(markup.includes('data-wheel-mark="factor"'));
+        assert.ok(markup.includes('data-wheel-mark="read"'));
+        assert.ok(markup.includes('Read ' + step.right + ' → ' + step.answer));
+        const currentRotation = markup.match(
+          /class="ring-top-disc" transform="([^"]+)"/,
+        )?.[1];
+        rotation ??= currentRotation;
+        assert.equal(currentRotation, rotation);
         const result = confirmTutorialReading(
           engine,
           exercise,
-          secondRow,
+          progress,
           target,
         );
         assert.equal(result.correct, true);
-        secondRow = {
-          ...result.progress,
-          tutorialStage: secondRow.tutorialStage,
-        };
+        progress = restoreLesson(exercise, result.progress);
       }
-      assert.ok(instrumentHandoff(exercise, secondRow));
-      const addition = exercise.steps[secondRow.cursor];
-      const additionMarkup = render({
-        ...secondRow,
-        tutorialStage: addition.id,
-      });
-      assert.ok(
-        additionMarkup.includes('Auto-fill next letter'),
-        'Addition still needs wheel turns',
-      );
+      assert.equal(progress.primary, factor);
+      assert.ok(render(progress).includes('data-turning-locked="true"'));
     }
-
-    const last =
-      exercise.steps.findIndex((step) => step.kind === 'addition') - 1;
-    const handoff = confirmTutorialReading(
-      engine,
-      exercise,
-      {
-        ...emptyLesson(),
-        cursor: last,
-        answers: exercise.steps.slice(0, last).map((step) => step.answer),
-        primary: exercise.steps[last].left!,
-      },
-      target,
-    ).progress;
-    assert.ok(instrumentHandoff(exercise, handoff));
-    assert.ok(render(handoff).includes('data-turning-locked="true"'));
-    assert.ok(!render(handoff).includes('>Adjust wheel</button>'));
-
-    const example = render(
-      {
-        ...emptyLesson(),
-        exampleCursor: first,
-        exampleWheel: {
-          ...emptyLesson().exampleWheel,
-          primary: exercise.steps[first].left!,
-        },
-      },
-      true,
-    );
-    assert.ok(activeToolbar(example, 'wheel-turn-buttons'));
-    assert.ok(!example.includes('data-wheel-mark='));
-    assert.ok(example.includes('Show the correct setting'));
+    assert.equal(instrumentHandoff(exercise, progress)!.next.kind, 'addition');
   }
 });
-
 await test('Adjust mode restores turning without changing the displayed factor or reading', async () => {
   const Wheel = (
     await import(
@@ -770,20 +687,108 @@ await test('Adjust mode restores turning without changing the displayed factor o
   assert.ok(!paper.includes('data-wheel-mark='));
 });
 
-await test('every practice tutorial exposes Confirm and only offers applicable Auto-fill controls', () => {
+await test('the book guide exposes copying and D table work, with persistent single-entry, stage-fill and Next controls', () => {
   for (const [exercise, target] of [
     [checksumExercise(engine, session.shares.A), 'S'],
     [checksumExercise(engine, session.shares.C, true), 'S'],
     [shareExercise(engine, session, ['A', 'C'], 'D'), 'D'],
     [shareExercise(engine, session, ['C', 'D'], 'S'), 'S'],
   ] as const) {
-    const preview = tutorialCalculation(exercise, emptyLesson(), target);
-    const step = exercise.steps[preview.cursor];
-    const props = {
+    const render = (progress: ReturnType<typeof emptyLesson>) =>
+      renderToStaticMarkup(
+        createElement(TutorialLesson, {
+          engine,
+          exercise,
+          target,
+          session,
+          progress,
+          example: false,
+          active: true,
+          onChange: noop,
+          onComplete: noop,
+          onContinue: noop,
+          onReset: noop,
+          continueLabel: 'Next: Verify share',
+        }),
+      );
+    const untouched = emptyLesson();
+    const initial = render(untouched);
+    assert.deepEqual(untouched, emptyLesson());
+    assert.ok(initial.includes('<summary>How does this work?</summary>'));
+    assert.ok(initial.includes('Auto-fill this step'));
+    assert.ok(initial.includes('Auto-fill next'));
+    assert.ok(initial.includes('Next step'));
+    assert.ok(initial.includes('class="book-stage-result"'));
+    assert.ok(initial.includes('class="tutorial-recorded"'));
+    assert.ok(!initial.includes('Auto-complete section'));
+    assert.ok(!initial.includes('Skip the paper'));
+    if (target === 'D') {
+      assert.ok(initial.includes('DERIVATION TABLE'));
+      assert.ok(!initial.includes('class="wheel-tool'));
+      assert.ok(initial.includes('Factor from the table'));
+    } else if (exercise.checksum) {
+      assert.ok(
+        initial.includes(
+          exercise.verification
+            ? 'Make a separate copy.'
+            : 'The bottom row is given.',
+        ),
+      );
+      assert.ok(!initial.includes('class="wheel-tool'));
+    }
+    const filled = autoStage(exercise, untouched);
+    const paused = render(filled.progress);
+    for (const selector of [
+      'book-stage-actions',
+      'book-stage-result',
+      'tutorial-recorded',
+      'tutorial-entry',
+    ]) {
+      assert.equal(
+        (initial.match(new RegExp('class="' + selector + '"', 'g')) ?? [])
+          .length,
+        (paused.match(new RegExp('class="' + selector + '"', 'g')) ?? [])
+          .length,
+      );
+    }
+    assert.ok(paused.includes('Completed step'));
+    assert.match(
+      paused,
+      /<button[^>]*disabled=""[^>]*>Auto-fill this step<\/button>/,
+    );
+    assert.equal(
+      autoStage(exercise, filled.progress).progress,
+      filled.progress,
+    );
+  }
+});
+
+await test('legacy parked wheel settings are used by both the rendered reading and its confirmation', () => {
+  const exercise = shareExercise(engine, session, ['C', 'D'], 'S');
+  const at = 3;
+  const step = exercise.steps[at];
+  const progress = {
+    ...emptyLesson(),
+    cursor: at,
+    answers: exercise.steps.slice(0, at).map((entry) => entry.answer),
+    parked: {
+      [step.id]: {
+        draft: '',
+        wheel: {
+          ...emptyLesson().exampleWheel,
+          primary: step.left!,
+          factorSide: false,
+        },
+      },
+    },
+  };
+  const markup = renderToStaticMarkup(
+    createElement(TutorialLesson, {
       engine,
       exercise,
-      target,
       session,
+      progress,
+      target: 'S',
       example: false,
       active: true,
       onChange: noop,
@@ -791,71 +796,79 @@ await test('every practice tutorial exposes Confirm and only offers applicable A
       onContinue: noop,
       onReset: noop,
       continueLabel: 'Next',
-    };
-    let workedExample: string | undefined;
-    for (const aligned of [true, false]) {
-      const primary = aligned
-        ? step.left![preview.column]
-        : alphabet
-            .split('')
-            .find(
-              (letter) =>
-                letter !== step.left![preview.column] && letter !== 'Q',
-            )!;
-      const progress = { ...preview, primary };
-      const saved = structuredClone(progress);
-      const markup = renderToStaticMarkup(
-        createElement(TutorialLesson, { ...props, progress }),
-      );
-      assert.deepEqual(progress, saved, 'Explanations do not record answers');
-      assert.ok(markup.includes('<summary>How does this work?</summary>'));
-      assert.ok(!markup.includes('What is the computer doing?'));
-      const calculation = markup.match(
-        /<figure class="math-worked-example">[\s\S]*?<\/figure>/,
-      )?.[0];
-      if (aligned) workedExample = calculation;
-      else
-        assert.equal(
-          calculation,
-          workedExample,
-          'The teaching example is not a wrong wheel reading',
-        );
-      const confirm = markup.match(
-        /<button\b[^>]*>Confirm (?:character|factor)<\/button>/,
-      )?.[0];
-      assert.ok(
-        confirm,
-        'The learner needs a Confirm button in every worksheet',
-      );
-      assert.equal(confirm.includes('disabled=""'), !aligned);
-      const input = markup.match(
-        /<input\b[^>]*tutorial-wheel-character[^>]*>/,
-      )?.[0];
-      assert.ok(input, 'The current reading must fill a character box');
-      assert.match(input, /readonly=""/i);
-      if (aligned)
-        assert.match(
-          input,
-          new RegExp('value="' + step.answer[preview.column] + '"'),
-        );
-      assert.equal(
-        /Auto-fill next (?:letter|factor)/.test(markup),
-        step.kind !== 'translation',
-      );
-      assert.ok(!markup.includes('Turn &amp; fill next letter'));
-      assert.equal(
-        confirmTutorialReading(engine, exercise, progress, target).correct,
-        aligned,
-      );
-    }
-    const example = renderToStaticMarkup(
+    }),
+  );
+  assert.ok(markup.includes('data-turning-locked="true"'));
+  assert.ok(!markup.includes('FUSION VOLVELLE'));
+  assert.match(
+    markup,
+    /<button(?![^>]*disabled)[^>]*>Confirm character<\/button>/,
+  );
+  const current = tutorialCalculation(exercise, progress, 'S');
+  assert.deepEqual(current.parked, {});
+  assert.equal(
+    confirmTutorialReading(engine, exercise, current, 'S').correct,
+    true,
+  );
+  assert.ok(
+    progress.parked[step.id],
+    'Rendering itself does not mutate a saved workbook',
+  );
+});
+
+await test('unknown cells keep the wheel footprint and every checksum stage renders before and after filling', () => {
+  const exercise = checksumExercise(engine, session.shares.A);
+  const render = (progress: ReturnType<typeof emptyLesson>) =>
+    renderToStaticMarkup(
       createElement(TutorialLesson, {
-        ...props,
-        progress: emptyLesson(),
-        example: true,
+        engine,
+        exercise,
+        session,
+        progress,
+        target: 'S',
+        example: false,
+        active: true,
+        onChange: noop,
+        onComplete: noop,
+        onContinue: noop,
+        onReset: noop,
+        continueLabel: 'Next: Verify share A',
       }),
     );
-    assert.doesNotMatch(example, />Confirm (?:character|factor)<\/button>/);
-    assert.match(example, /Show the correct setting/);
+  let progress = emptyLesson();
+  while (progress.answers.length < exercise.steps.length) {
+    progress = openNextStage(exercise, progress);
+    assert.ok(render(progress).includes('Auto-fill this step'));
+    progress = autoStage(exercise, progress).progress;
+    assert.ok(render(progress).includes('Completed step'));
   }
+  const at = exercise.steps.findIndex(
+    (step) =>
+      step.kind === 'addition' &&
+      step.answer.includes('?') &&
+      !/^\?+$/.test(step.answer),
+  );
+  const step = exercise.steps[at];
+  const unknownColumn = step.answer.indexOf('?');
+  const base = {
+    ...emptyLesson(),
+    cursor: at,
+    answers: exercise.steps.slice(0, at).map((entry) => entry.answer),
+    tutorialStage: step.id,
+  };
+  const known = render(base);
+  const unknown = render({ ...base, column: unknownColumn });
+  for (const markup of [known, unknown]) {
+    assert.ok(markup.includes('class="book-instrument-stack"'));
+    assert.equal((markup.match(/class="paper-magnifier"/g) ?? []).length, 1);
+  }
+  assert.match(unknown, /class="book-wheel-slot" aria-hidden="true" inert=""/);
+  assert.ok(unknown.includes('>Confirm unknown cell</button>'));
+  const one = finishTutorialReading(
+    exercise,
+    { ...base, column: unknownColumn },
+    'S',
+  );
+  assert.equal(one.progress.answers.length, at);
+  assert.equal(one.progress.draft[unknownColumn], '?');
 });

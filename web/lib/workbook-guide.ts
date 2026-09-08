@@ -26,7 +26,7 @@ export function selectOperand(
   value: string,
   example = false,
 ) {
-  const start = exercise.steps[0]?.id === 'endpoint' ? 1 : 0;
+  const start = 0;
   const at = example
     ? Math.max(
         start,
@@ -53,7 +53,11 @@ export function selectOperand(
 }
 
 // Explicit shortcuts use the same answer validator as handwritten work.
-export function autoNextEntry(exercise: Exercise, progress: LessonProgress) {
+export function autoNextEntry(
+  exercise: Exercise,
+  progress: LessonProgress,
+  stopBefore = exercise.steps.length,
+) {
   const step = exercise.steps[progress.cursor];
   if (
     !step ||
@@ -79,7 +83,7 @@ export function autoNextEntry(exercise: Exercise, progress: LessonProgress) {
       step.answer.length,
     ),
   };
-  const result = checkColumn(exercise, filled);
+  const result = checkColumn(exercise, filled, stopBefore);
   if (!result.correct) return { ...result, progress: filled };
   return !wheelColumn && result.progress.cursor === progress.cursor
     ? { ...result, progress: { ...result.progress, column: 0 } }
@@ -110,33 +114,59 @@ export function autoExercise(exercise: Exercise, progress: LessonProgress) {
   return { correct: true, complete: true, progress: next };
 }
 
-// Preview the next wheel calculation without changing saved work. The tutorial
-// commits these table/copy steps only with a confirmed reading or an auto action.
+// A stage is one paper operation: a checksum row, the two factor lookups,
+// one complete translation row, or the final addition row. Stable answer IDs
+// remain unchanged; setting/flipping an instrument earns no answer credit.
+export function workbookStage(exercise: Exercise, cursor: number) {
+  const step = exercise.steps[cursor];
+  if (!step) return null;
+  const keyFor = (entry: ExerciseStep) =>
+    exercise.checksum
+      ? entry.id
+      : entry.kind === 'translation'
+        ? 'translate-' + (entry.id.endsWith('-0') ? '0' : '1')
+        : entry.kind;
+  const key = keyFor(step);
+  let start = cursor,
+    end = cursor + 1;
+  while (start > 0 && keyFor(exercise.steps[start - 1]) === key) start--;
+  while (end < exercise.steps.length && keyFor(exercise.steps[end]) === key)
+    end++;
+  const tool =
+    step.kind === 'recovery'
+      ? exercise.output[8] === 'D'
+        ? 'Derivation table'
+        : 'Recovery wheel'
+      : step.kind === 'translation'
+        ? 'Fusion side → Translation side'
+        : step.kind === 'addition'
+          ? 'Addition wheel'
+          : step.kind === 'lookup'
+            ? 'Checksum table'
+            : 'Paper worksheet';
+  return {
+    key,
+    start,
+    end,
+    tool,
+    title: exercise.checksum
+      ? step.title
+      : step.kind === 'recovery'
+        ? 'Find both factors'
+        : step.kind === 'translation'
+          ? 'Translate share ' +
+            exercise.steps[step.id.endsWith('-0') ? 0 : 1].left
+          : 'Add the two translated rows',
+  };
+}
+
+// Merely viewing the guide must never fill copies, table lookups or unknowns.
 export function tutorialCalculation(
   exercise: Exercise,
   progress: LessonProgress,
-  target: 'D' | 'S',
+  _target: 'D' | 'S',
 ) {
-  let next = prepareLesson(
-    exercise,
-    visitLesson(exercise, progress, progress.answers.length),
-  );
-  for (let i = 0; i < exercise.steps.length * 14; i++) {
-    const step = exercise.steps[next.cursor];
-    if (!step) return next;
-    const column = Math.min(next.column, (step.right?.length ?? 1) - 1);
-    const wheel =
-      ['addition', 'translation', 'recovery'].includes(step.kind) &&
-      !(step.kind === 'recovery' && target === 'D');
-    if (wheel && step.left?.[column] !== '?' && step.right?.[column] !== '?')
-      return next;
-    const result = wheel
-      ? autoNextEntry(exercise, next)
-      : submitAnswer(exercise, { ...next, draft: step.answer });
-    if (!result.correct) return next;
-    next = result.progress;
-  }
-  return next;
+  return visitLesson(exercise, progress, progress.answers.length);
 }
 
 export function instrumentHandoff(
@@ -146,34 +176,109 @@ export function instrumentHandoff(
   const cursor = progress.answers.length;
   const next = exercise.steps[cursor],
     previous = exercise.steps[cursor - 1];
+  if (!next || !previous || progress.tutorialStage === next.id) return null;
   if (
-    exercise.checksum ||
-    !next ||
-    !previous ||
-    progress.tutorialStage === next.id
-  )
-    return null;
-  if (
-    (exercise.output[8] === 'S' &&
-      previous.kind === 'recovery' &&
-      next.kind === 'translation') ||
-    (previous.kind === 'translation' && next.kind === 'addition')
+    workbookStage(exercise, cursor - 1)?.key !==
+    workbookStage(exercise, cursor)?.key
   )
     return { previous, next, cursor };
   return null;
 }
 
+export function openNextStage(exercise: Exercise, progress: LessonProgress) {
+  const handoff = instrumentHandoff(exercise, progress);
+  if (!handoff) return progress;
+  return {
+    ...progress,
+    tutorialStage: handoff.next.id,
+    primary: 'Q',
+    other: 'Q',
+    factorSide: true,
+    column: 0,
+    tableOpen: false,
+  };
+}
+
+function stageReady(exercise: Exercise, progress: LessonProgress) {
+  const step = exercise.steps[progress.cursor];
+  return Boolean(
+    step &&
+    progress.cursor === progress.answers.length &&
+    !instrumentHandoff(exercise, progress) &&
+    !(step.kind === 'translation' && progress.factorSide) &&
+    progress.answers.every((answer, i) => answer === exercise.steps[i]?.answer),
+  );
+}
+
+// Unlike the internal fixture utility autoExercise, this shortcut cannot cross
+// a stage boundary, even when legacy saves contain already-checked later work.
+export function autoStage(exercise: Exercise, progress: LessonProgress) {
+  if (!stageReady(exercise, progress))
+    return { correct: false, complete: false, progress };
+  const stage = workbookStage(exercise, progress.cursor)!;
+  let next = progress;
+  while (next.cursor < stage.end) {
+    const step = exercise.steps[next.cursor];
+    const column = Math.max(0, (step.left?.length ?? 1) - 1);
+    const filled = {
+      ...next,
+      draft: step.answer,
+      primary: step.left?.[column] ?? next.primary,
+      other: step.right?.[column] ?? next.other,
+      ...(step.kind === 'lookup'
+        ? {
+            tableFirst: step.key![0],
+            tableSecond: step.key![1],
+            tableOpen: true,
+          }
+        : {}),
+    };
+    const result = submitAnswer(exercise, filled, stage.end);
+    if (!result.correct) return { correct: false, complete: false, progress };
+    next = advanceTutorialReading(exercise, filled, result).progress;
+    const last = exercise.steps[next.cursor - 1];
+    const lastColumn = Math.max(0, (last.left?.length ?? 1) - 1);
+    next.primary = last.left?.[lastColumn] ?? next.primary;
+    next.other = last.right?.[lastColumn] ?? next.other;
+    next.column = Math.max(0, (last.right?.length ?? 1) - 1);
+  }
+  return {
+    correct: true,
+    complete: next.answers.length === exercise.steps.length,
+    progress: next,
+  };
+}
+
+export function confirmTutorialRow(
+  exercise: Exercise,
+  progress: LessonProgress,
+) {
+  if (!stageReady(exercise, progress))
+    return { correct: false, complete: false, progress };
+  return advanceTutorialReading(
+    exercise,
+    progress,
+    submitAnswer(
+      exercise,
+      progress,
+      workbookStage(exercise, progress.cursor)!.end,
+    ),
+  );
+}
+
 export function finishTutorialReading(
   exercise: Exercise,
   progress: LessonProgress,
-  target: 'D' | 'S',
+  _target: 'D' | 'S',
 ) {
-  const result = autoNextEntry(exercise, progress);
-  return advanceTutorialReading(exercise, progress, result, target);
+  if (!stageReady(exercise, progress))
+    return { correct: false, complete: false, progress };
+  const result = autoNextEntry(exercise, progress, progress.cursor + 1);
+  return advanceTutorialReading(exercise, progress, result);
 }
 
-// Confirm the live quick-tutorial wheel, not an answer filled by the shortcut.
-// Its reading face and input character are fixed by the displayed exercise.
+// Confirm the live wheel, not an answer filled by the shortcut. Translation
+// requires its reading face; merely setting the fusion side is not a reading.
 export function confirmTutorialReading(
   engine: Engine,
   exercise: Exercise,
@@ -181,14 +286,14 @@ export function confirmTutorialReading(
   target: 'D' | 'S',
 ) {
   const rejected = { correct: false, complete: false, progress };
-  if (
-    instrumentHandoff(exercise, progress) ||
-    !progress.answers.every((answer, i) => answer === exercise.steps[i]?.answer)
-  )
-    return rejected;
+  if (!stageReady(exercise, progress)) return rejected;
   const next = tutorialCalculation(exercise, progress, target);
   const step = exercise.steps[next.cursor];
-  if (!step || !['addition', 'translation', 'recovery'].includes(step.kind))
+  if (
+    !step ||
+    !['addition', 'translation', 'recovery'].includes(step.kind) ||
+    (step.kind === 'recovery' && target === 'D')
+  )
     return rejected;
   const column = Math.min(next.column, (step.right?.length ?? 1) - 1);
   const left = step.left?.[column],
@@ -221,27 +326,38 @@ export function confirmTutorialReading(
     factorSide: false,
     draft: writeColumn(next.draft, column, reading, step.answer.length),
   };
-  const result = checkColumn(exercise, filled);
+  const result = checkColumn(exercise, filled, progress.cursor + 1);
   if (!result.correct) return rejected;
-  return advanceTutorialReading(exercise, filled, result, target);
+  return advanceTutorialReading(exercise, filled, result);
 }
 
 function advanceTutorialReading(
   exercise: Exercise,
   progress: LessonProgress,
   result: ReturnType<typeof checkColumn>,
-  target: 'D' | 'S',
 ) {
   if (!result.correct) return result;
-  const next = tutorialCalculation(exercise, result.progress, target);
+  const next = { ...result.progress };
+  if (
+    instrumentHandoff(exercise, next) ||
+    next.answers.length === exercise.steps.length
+  )
+    next.column = progress.column;
   // Keep each physical instrument where it was turned until the next explicit
   // turn, including when translating the second row at a different factor.
   if (
     exercise.steps[progress.cursor]?.kind ===
       exercise.steps[next.cursor]?.kind ||
-    instrumentHandoff(exercise, next)
+    instrumentHandoff(exercise, next) ||
+    next.answers.length === exercise.steps.length
   )
-    next.primary = progress.primary;
+    Object.assign(next, {
+      primary: progress.primary,
+      factorSide: progress.factorSide,
+      tableFirst: progress.tableFirst,
+      tableSecond: progress.tableSecond,
+      tableOpen: progress.tableOpen,
+    });
   return {
     correct: true,
     complete: next.answers.length === exercise.steps.length,
@@ -346,7 +462,11 @@ export function writeColumn(
   row[column] = normalizeAnswer(value).slice(-1) || EMPTY_CELL;
   return row.join('');
 }
-export function checkColumn(exercise: Exercise, progress: LessonProgress) {
+export function checkColumn(
+  exercise: Exercise,
+  progress: LessonProgress,
+  stopBefore = exercise.steps.length,
+) {
   const step = exercise.steps[progress.cursor];
   if (
     !step ||
@@ -363,7 +483,7 @@ export function checkColumn(exercise: Exercise, progress: LessonProgress) {
   }
   const row = normalizeAnswer(progress.draft);
   // The existing whole-row verifier remains the only source of step credit.
-  if (row === step.answer) return submitAnswer(exercise, progress);
+  if (row === step.answer) return submitAnswer(exercise, progress, stopBefore);
   const next = Array.from(
     { length: step.answer.length },
     (_, i) => (progress.column + i + 1) % step.answer.length,

@@ -378,7 +378,7 @@ export default function Workshop() {
   function finishAndCheck(
     index: 'A' | 'C' | 'D',
     action?: FlowAction,
-    advance = true,
+    advance = false,
   ) {
     if (!engine) return;
     updateBook((current) => {
@@ -468,26 +468,23 @@ export default function Workshop() {
           if (id.startsWith('checksum-'))
             finishAndCheck(id.slice(-1) as 'A' | 'C', undefined, false);
           else if (id === 'derive') finishAndCheck('D', undefined, false);
-          else if (id.startsWith('recover-'))
-            dispatchFlow({ type: 'recovery-completed' });
         }}
         onContinue={onComplete}
         continueLabel={
-          id.startsWith('checksum-') || id === 'verify-A' || id === 'verify-C'
-            ? 'Next: Share ' +
-              (flow.checksums[otherIndex] && shareChecked(flow, otherIndex)
-                ? 'D'
-                : otherIndex)
-            : id === 'derive' || id === 'verify-D'
-              ? 'Next: Recover secret'
-              : 'Next step'
+          id.startsWith('checksum-')
+            ? 'Next: Verify share ' + id.slice(-1)
+            : id === 'derive'
+              ? 'Next: Verify share D'
+              : id === 'verify-A' || id === 'verify-C'
+                ? 'Next: Share ' +
+                  (flow.checksums[otherIndex] && shareChecked(flow, otherIndex)
+                    ? 'D'
+                    : otherIndex)
+                : id === 'verify-D'
+                  ? 'Next: Recover secret'
+                  : 'Next step'
         }
         onReset={() => updateBook((current) => resetSection(current, id))}
-        onSkipPaper={
-          id.startsWith('verify-')
-            ? () => finishAndCheck(id.slice(7) as 'A' | 'C' | 'D')
-            : undefined
-        }
       />
     );
   }
@@ -545,7 +542,7 @@ export default function Workshop() {
                   }
                   onClick={() => navigate('verify')}
                 >
-                  Paper verification (optional)
+                  Verification worksheets
                 </button>
                 <button
                   className="text-button"
@@ -999,7 +996,8 @@ export default function Workshop() {
               )}
               <div className="stage-toolbar">
                 <p>
-                  Try one calculation, or complete the section to keep going.
+                  Try a few entries, or auto-fill the current step. Next changes
+                  tools.
                 </p>
                 <label htmlFor="checksum-share">
                   Initial share
@@ -1040,7 +1038,7 @@ export default function Workshop() {
                 </output>
               )}
               <div className="stage-toolbar">
-                <p>Optional paper check · include the checksum this time.</p>
+                <p>Fresh-copy verification · include the checksum this time.</p>
                 <label htmlFor="verify-share">
                   Verify share
                   <NativeSelect

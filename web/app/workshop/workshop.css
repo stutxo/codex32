@@ -2344,6 +2344,56 @@
 .tutorial-entry button {
   width: 100%;
 }
+.book-stage-actions,
+.book-stage-result,
+.book-table-result {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.book-stage-actions p,
+.book-next-preview {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.book-stage-actions button {
+  width: 100%;
+  min-height: 3.5rem;
+}
+.book-stage-result code,
+.book-table-result code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  min-height: 3.2em;
+}
+.book-stage-result {
+  padding: 14px;
+  border: 1px solid var(--border);
+}
+.tutorial-entry .book-row-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 3rem;
+  font-family: 'Courier New', monospace;
+}
+.book-entry-error {
+  min-height: 1.5em;
+  color: var(--primary);
+}
+.book-instrument-stack {
+  display: grid;
+  min-width: 0;
+}
+.book-instrument-stack > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.book-wheel-slot[aria-hidden='true'] {
+  visibility: hidden;
+  pointer-events: none;
+}
 .tutorial-reading {
   display: flex;
   align-items: center;

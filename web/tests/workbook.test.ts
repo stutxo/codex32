@@ -110,11 +110,11 @@ await test('manual checks reject missing, partial, wrong and skipped entries wit
   }
 });
 
-await test('checksum generation supplies only the book’s fixed row and starts at the first calculation', () => {
+await test('checksum generation starts with an explicit copy of the book’s given bottom row', () => {
   const prepared = prepareLesson(a);
-  assert.deepEqual(prepared.answers, ['SECRETSHARE32']);
-  assert.equal(prepared.cursor, 1);
-  assert.equal(a.steps[prepared.cursor].id, 'prefill');
+  assert.deepEqual(prepared.answers, []);
+  assert.equal(prepared.cursor, 0);
+  assert.equal(a.steps[prepared.cursor].id, 'endpoint');
   assert.equal(prepared.draft, '');
   assert.equal(submitAnswer(a, prepared).correct, false);
   assert.equal(prepareLesson(a, prepared), prepared);
@@ -135,14 +135,14 @@ await test('supplying the fixed row keeps existing calculations, unfinished draf
   };
   assert.equal(prepareLesson(a, current), current);
   const reviewingGiven = { ...current, cursor: 0 };
-  assert.deepEqual(prepareLesson(a, reviewingGiven), { ...current, cursor: 1 });
+  assert.deepEqual(prepareLesson(a, reviewingGiven), reviewingGiven);
   const saved = emptyWorkbooks();
   saved.books.fresh.initial = [fresh.shares.A, fresh.shares.C];
   saved.books.fresh.lessons['checksum-A'] = reviewingGiven;
   const restored = restoreWorkbooks(engine, JSON.stringify(saved)).books.fresh;
-  assert.deepEqual(restored.lessons['checksum-A'], { ...current, cursor: 1 });
-  assert.deepEqual(restored.lessons['checksum-C'].answers, ['SECRETSHARE32']);
-  assert.equal(restored.lessons['checksum-C'].cursor, 1);
+  assert.deepEqual(restored.lessons['checksum-A'], reviewingGiven);
+  assert.deepEqual(restored.lessons['checksum-C'].answers, []);
+  assert.equal(restored.lessons['checksum-C'].cursor, 0);
   assert.deepEqual(restored.flow.checksums, { A: false, C: false });
 });
 

@@ -30,7 +30,7 @@ export const initialFlow: WorkshopFlow = {
   focus: 'stage',
 };
 export const shareChecked = (state: WorkshopFlow, index: ShareIndex) =>
-  state.verified[index] || state.computerVerified[index];
+  state.verified[index];
 
 // Keep restored and manually revisited tabs on a worksheet whose prerequisites
 // have been completed. Completion flags are rebuilt from checked answers.

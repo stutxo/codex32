@@ -76,7 +76,7 @@ await test('guided examples clamp to the displayed entry and preserve every manu
   const progress = {
     ...at(checksum, 8),
     draft: 'MYDRAFT',
-    exampleCursor: 0,
+    exampleCursor: 1,
     parked: { sample: { draft: 'Q' } },
   };
   const turned = selectOperand(checksum, progress, 'primary', '2', true);

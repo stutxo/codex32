@@ -289,22 +289,13 @@ export const emptyLesson = (): LessonProgress => ({
   exampleWheel: emptyWheel(),
 });
 
-// Keep the legacy endpoint slot so saved calculation indices remain stable.
-// It is a supplied row, not a learner answer or an entry shown in the UI.
+// Preparation is now an explicit copying step. Keep its ID and answer slot so
+// older workbooks retain all of their checked work, including the given row.
 export function prepareLesson(
-  exercise: Exercise,
+  _exercise: Exercise,
   progress: LessonProgress = emptyLesson(),
 ): LessonProgress {
-  if (exercise.steps[0]?.id !== 'endpoint') return progress;
-  const prepared =
-    progress.answers.length === 0
-      ? submitAnswer(exercise, {
-          ...progress,
-          cursor: 0,
-          draft: 'SECRETSHARE32',
-        }).progress
-      : progress;
-  return prepared.cursor === 0 ? { ...prepared, cursor: 1 } : prepared;
+  return progress;
 }
 export function editLesson(
   progress: LessonProgress,
@@ -334,7 +325,11 @@ export function editLesson(
 export function normalizeAnswer(value: string): string {
   return value.replace(/[ \t\r\n]/g, '').toUpperCase();
 }
-export function submitAnswer(exercise: Exercise, progress: LessonProgress) {
+export function submitAnswer(
+  exercise: Exercise,
+  progress: LessonProgress,
+  stopBefore = exercise.steps.length,
+) {
   const step = exercise.steps[progress.answers.length];
   if (
     !step ||
@@ -349,7 +344,8 @@ export function submitAnswer(exercise: Exercise, progress: LessonProgress) {
   }
   const answers = [...progress.answers, answer];
   const deferredAnswers = { ...progress.deferredAnswers };
-  while (answers.length < exercise.steps.length) {
+  delete deferredAnswers[step.id];
+  while (answers.length < Math.min(stopBefore, exercise.steps.length)) {
     const next = exercise.steps[answers.length];
     if (deferredAnswers[next.id] !== next.answer) break;
     answers.push(next.answer);

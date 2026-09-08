@@ -9,9 +9,14 @@ The home page `/` starts with an empty new-key worksheet; the published example
 is loaded only when requested. Generating shares stays on the Key step to show A
 and C, with unfinished checksums marked by `?`. “Next: Checksums” advances to the
 first worksheet; reloading or revisiting Key preserves the shares and progress.
-Quick and paper lessons share an action strip below the output and progress:
-“Auto-complete section” fills the remaining answers, then “Next” advances after
-the learner reviews the result. Single-letter controls stay beside the worksheet.
+The guided book steps keep single-entry, “Auto-fill this step”, and “Next”
+controls beside the worksheet. Auto-fill stops at the current paper operation:
+one checksum copy/lookup/shift/add row, the factor lookups, one complete translated
+share, or the final addition row. It never crosses a pending Next boundary.
+Each translation row starts with setting the fusion face, then an explicit flip
+to the translation face; auto-setting the factor does not flip or fill the row.
+Completed results remain visible until Next. The full paper worksheet remains
+available for review and transcription, with independent worked examples.
 The recovery workbench, share checker, and printable
 cards share the main page in a workbench tab. Previous `/workshop` and `/workbench`
 URLs redirect to the corresponding view on the main page.
@@ -43,7 +48,7 @@ recover the same encoded S before the session is accepted.
 The learner compares five dice pairs and follows the original printed decision tree
 before recording each character. Creation requires all 52 recorded characters;
 “Fill remaining” is an explicit shortcut. This exercise fixes k=2, three shares and
-the identifier PLAY. Each initial share's checksum generation is followed by a
+the identifier TEST (older saved PLAY keys are preserved). Each initial share's checksum generation is followed by a
 separate 50-entry downward verification worksheet. D is derived and independently
 verified before recovery; earlier worksheets remain available for review.
 
@@ -61,18 +66,22 @@ and Fusion are opposite faces of one instrument: flipping preserves the factor
 and reverses the apparent rotation. Q has no factor slot; input Q follows the
 printed Q ↔ Q rule. Alphabet ink uses Courier, as in the source.
 
-In every quick tutorial (checksums, verification, derivation and recovery),
+In every guided wheel step (checksums, verification, derivation and recovery),
 turning the wheel fills a live, read-only character
 box but grants no worksheet credit. Confirm checks the visible setting and reading;
 Auto-fill next letter (or factor) sets and confirms exactly one entry. The recovery
 wheel finds two factors, translation builds the two working rows, and addition
-fills the secret. Explicit Next buttons explain and acknowledge each new instrument;
-translating the second share keeps the same wheel and uses the other factor.
-Quick translation holds the wheel once its factor is correct. Purple marks the
+fills the secret. Explicit Next buttons acknowledge each new operation;
+translating the second share requires returning to the fusion side to set its factor.
+Guided translation holds the wheel once its factor is correct and it is flipped. Purple marks the
 fixed handle factor; blue marks the current inner-ring input (or Q↔Q). Confirm
-and Auto-fill leave the rotation unchanged within a share. Adjust wheel temporarily
-restores turning, and the next share requests its own factor. Paper tools and
-worked examples retain their freely turning wheels.
+and Auto-fill leave the rotation unchanged within a share. Adjust wheel returns
+to the fusion face to reset the factor. Paper tools and worked examples retain
+their freely turning wheels. Computer validation is an additional safeguard,
+not a substitute for the book’s verification worksheet. Older computer-checked
+saves retain their calculations and resume at any missing verification step.
+Copying the given SECRETSHARE32 bottom row is explicit for new worksheets;
+existing checked endpoint entries are retained.
 
 Practice work is saved automatically in this browser's localStorage, under
 `codex32.practice-workbooks.v1`. It includes initial A/C shares, unfinished dice
