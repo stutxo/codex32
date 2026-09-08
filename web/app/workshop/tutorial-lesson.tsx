@@ -101,6 +101,9 @@ export default function TutorialLesson(props: Props) {
     : null;
   const aligned = primary === left;
   const translationPractice = kind === 'translation' && !example;
+  // This is a row-level choice, not an alignment toggle: turning the wheel
+  // must not make a second action appear or disappear beside Confirm.
+  const confirmOnlyTranslation = translationPractice && target === 'D';
   const factorStep = exercise.output + ':' + step?.id;
   const factorHeld =
     translationPractice &&
@@ -125,7 +128,7 @@ export default function TutorialLesson(props: Props) {
     : exercise.checksum
       ? 'A checksum catches copying mistakes. Try a turn or finish this share.'
       : target === 'D'
-        ? 'Turn the wheel to make D from A and C. No new randomness is needed.'
+        ? 'Use the translation wheel for A and C, then the addition wheel to make D. No new randomness is needed.'
         : 'Use shares ' +
           exercise.steps[0].left +
           ' and ' +
@@ -168,7 +171,8 @@ export default function TutorialLesson(props: Props) {
     if (result.complete) onComplete();
   }
   function autoLetter() {
-    if (!step || !hasWheel || busy || done || handoff) return;
+    if (!step || !hasWheel || busy || done || handoff || confirmOnlyTranslation)
+      return;
     setError('');
     setAdjustingFactor(null);
     if (example) {
@@ -662,27 +666,31 @@ export default function TutorialLesson(props: Props) {
                       </span>
                     </output>
                   )}
-                  <button
-                    className="secondary-button"
-                    disabled={busy}
-                    onClick={autoLetter}
-                  >
-                    {example
-                      ? 'Show the correct setting'
-                      : kind === 'recovery'
-                        ? 'Auto-fill next factor'
-                        : 'Auto-fill next letter'}
-                  </button>
-                  {!example && (
-                    <small>
-                      <StableMessage
-                        active={translationPractice && aligned ? 0 : 1}
-                        messages={[
-                          'Auto-fill confirms the next character without turning the wheel.',
-                          'Auto-fill sets the wheel and confirms one entry for you.',
-                        ]}
-                      />
-                    </small>
+                  {!confirmOnlyTranslation && (
+                    <>
+                      <button
+                        className="secondary-button"
+                        disabled={busy}
+                        onClick={autoLetter}
+                      >
+                        {example
+                          ? 'Show the correct setting'
+                          : kind === 'recovery'
+                            ? 'Auto-fill next factor'
+                            : 'Auto-fill next letter'}
+                      </button>
+                      {!example && (
+                        <small>
+                          <StableMessage
+                            active={translationPractice && aligned ? 0 : 1}
+                            messages={[
+                              'Auto-fill confirms the next character without turning the wheel.',
+                              'Auto-fill sets the wheel and confirms one entry for you.',
+                            ]}
+                          />
+                        </small>
+                      )}
+                    </>
                   )}
                   <output
                     className="tutorial-recorded"

@@ -109,6 +109,34 @@ export default function MathExplanation({
               multiply each share’s character by its factor, then add the two
               results at the same position.
             </p>
+            {target === 'D' && factors.length === 2 && (
+              <details className="math-deeper">
+                <summary>Which wheels does the book use?</summary>
+                <p>
+                  Two instruments: the sun translation/fusion wheel, then the
+                  dragon addition wheel. Translate share {factors[0].left} at
+                  factor {factors[0].answer}, then reuse the same translation
+                  wheel for share {factors[1].left} at factor{' '}
+                  {factors[1].answer}. Keep each setting fixed for its whole
+                  row. The addition wheel then combines the two rows into D.
+                </p>
+                <p>
+                  Translation and fusion are opposite faces of one instrument:
+                  set the factor on the fusion face, then flip it over to read.
+                  The starting factors come from the book’s derivation table; no
+                  recovery wheel is needed for D.
+                </p>
+                <p>
+                  <a
+                    href="https://secretcodex32.com/docs/2023-03-07--color.pdf#page=25"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    See the book’s translation worksheet (PDF)
+                  </a>
+                </p>
+              </details>
+            )}
             {factors.length === 2 && (
               <details className="math-deeper">
                 <summary>Where do the factors come from?</summary>

@@ -270,6 +270,15 @@ await test('translation explanations use actual inputs and factors for each targ
         ),
       );
       assert.match(markup, /S is the secret’s index; it is not Q \(zero\)/);
+      assert.equal(
+        markup.includes('Which wheels does the book use?'),
+        target === 'D',
+      );
+      if (target === 'D') {
+        assert.ok(markup.includes('reuse the same translation wheel'));
+        assert.ok(markup.includes('no recovery wheel is needed for D'));
+        assert.ok(markup.includes('2023-03-07--color.pdf#page=25'));
+      }
     }
   }
 });
@@ -334,6 +343,11 @@ await test('translation holds the factor while reading new characters and unlock
     while (exercise.steps[progress.cursor]?.id.endsWith('-translate-0')) {
       const step = exercise.steps[progress.cursor];
       const markup = render(progress);
+      assert.equal(markup.includes('Auto-fill next letter'), target !== 'D');
+      if (target === 'D') {
+        assert.ok(!markup.includes('Auto-fill sets the wheel'));
+        assert.ok(markup.includes('>Confirm character</button>'));
+      }
       assert.ok(markup.includes('data-turning-locked="true"'));
       assert.ok(markup.includes('no turning needed'));
       assert.ok(markup.includes('>Adjust wheel</button>'));
@@ -358,7 +372,7 @@ await test('translation holds the factor while reading new characters and unlock
         'Only the read highlight moves',
       );
       const result =
-        progress.cursor % 2
+        target === 'D' || progress.cursor % 2
           ? confirmTutorialReading(engine, exercise, progress, target)
           : finishTutorialReading(exercise, progress, target);
       assert.equal(result.correct, true);
@@ -370,6 +384,12 @@ await test('translation holds the factor while reading new characters and unlock
     const nextShare = exercise.steps[progress.cursor];
     assert.ok(nextShare.id.endsWith('-translate-1'));
     const changed = render(progress);
+    assert.equal(changed.includes('Auto-fill next letter'), target !== 'D');
+    assert.ok(
+      /<button\b[^>]*disabled=""[^>]*>Confirm character<\/button>/.test(
+        changed,
+      ),
+    );
     assert.ok(changed.includes('data-turning-locked="false"'));
     assert.ok(activeToolbar(changed, 'wheel-turn-buttons'));
     assert.ok(
@@ -390,6 +410,38 @@ await test('translation holds the factor while reading new characters and unlock
       confirmTutorialReading(engine, exercise, aligned, target).correct,
       true,
     );
+    if (target === 'D') {
+      let secondRow = aligned;
+      const secondRotation = rotation(render(secondRow));
+      while (exercise.steps[secondRow.cursor]?.id.endsWith('-translate-1')) {
+        const markup = render(secondRow);
+        assert.ok(!markup.includes('Auto-fill next letter'));
+        assert.ok(!markup.includes('Auto-fill sets the wheel'));
+        assert.ok(markup.includes('>Confirm character</button>'));
+        assert.equal(rotation(markup), secondRotation);
+        const result = confirmTutorialReading(
+          engine,
+          exercise,
+          secondRow,
+          target,
+        );
+        assert.equal(result.correct, true);
+        secondRow = {
+          ...result.progress,
+          tutorialStage: secondRow.tutorialStage,
+        };
+      }
+      assert.ok(instrumentHandoff(exercise, secondRow));
+      const addition = exercise.steps[secondRow.cursor];
+      const additionMarkup = render({
+        ...secondRow,
+        tutorialStage: addition.id,
+      });
+      assert.ok(
+        additionMarkup.includes('Auto-fill next letter'),
+        'Addition still needs wheel turns',
+      );
+    }
 
     const last =
       exercise.steps.findIndex((step) => step.kind === 'addition') - 1;
@@ -421,6 +473,7 @@ await test('translation holds the factor while reading new characters and unlock
     );
     assert.ok(activeToolbar(example, 'wheel-turn-buttons'));
     assert.ok(!example.includes('data-wheel-mark='));
+    assert.ok(example.includes('Show the correct setting'));
   }
 });
 
@@ -469,7 +522,7 @@ await test('Adjust mode restores turning without changing the displayed factor o
   assert.ok(!paper.includes('data-wheel-mark='));
 });
 
-await test('every practice tutorial exposes manual Confirm and separate Auto-fill controls', () => {
+await test('every practice tutorial exposes Confirm and only offers applicable Auto-fill controls', () => {
   for (const [exercise, target] of [
     [checksumExercise(engine, session.shares.A), 'S'],
     [checksumExercise(engine, session.shares.C, true), 'S'],
@@ -537,7 +590,10 @@ await test('every practice tutorial exposes manual Confirm and separate Auto-fil
           input,
           new RegExp('value="' + step.answer[preview.column] + '"'),
         );
-      assert.ok(/Auto-fill next (?:letter|factor)/.test(markup));
+      assert.equal(
+        /Auto-fill next (?:letter|factor)/.test(markup),
+        !(target === 'D' && step.kind === 'translation'),
+      );
       assert.ok(!markup.includes('Turn &amp; fill next letter'));
       assert.equal(
         confirmTutorialReading(engine, exercise, progress, target).correct,
