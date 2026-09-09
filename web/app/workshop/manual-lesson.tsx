@@ -13,7 +13,6 @@ import {
   prepareLesson,
   editLesson,
   normalizeAnswer,
-  submitAnswer,
   visitLesson,
   type Exercise,
   type LessonProgress,
@@ -25,14 +24,18 @@ import PaperReference, {
   DerivationTable,
 } from './paper-reference';
 import {
-  checkColumn,
+  confirmPaperColumn,
+  confirmTutorialRow,
+  finishTutorialReading,
+  autoStage,
+  instrumentHandoff,
+  openNextStage,
+  workbookStage,
   columnEntry,
   writeColumn,
   stepGuide,
   isUnknownRow,
-  keepUnknown,
   selectOperand,
-  autoNextEntry,
   visibleShare,
 } from '@/lib/workbook-guide';
 
@@ -46,6 +49,8 @@ export default function ManualLesson({
   active,
   target = 'S',
   session,
+  onContinue,
+  continueLabel,
 }: {
   engine: Engine;
   exercise: Exercise;
@@ -56,6 +61,8 @@ export default function ManualLesson({
   active: boolean;
   target?: 'D' | 'S';
   session: WorkshopSession;
+  onContinue?: () => void;
+  continueLabel?: string;
 }) {
   const [error, setError] = useState('');
   const [autoBusy, setAutoBusy] = useState(false);
@@ -73,16 +80,28 @@ export default function ManualLesson({
   } | null>(null);
   const focusPrompt = useRef(false);
   const givenCount = 0;
+  const handoff = example ? null : instrumentHandoff(exercise, progress);
   const at = example
     ? Math.max(
         givenCount,
         Math.min(progress.exampleCursor, exercise.steps.length - 1),
       )
-    : progress.cursor;
+    : handoff && progress.cursor === progress.answers.length
+      ? progress.cursor - 1
+      : progress.cursor;
   const view = example ? progress.exampleWheel : progress;
   const done = !example && at === exercise.steps.length;
   const step = exercise.steps[Math.min(at, exercise.steps.length - 1)];
   const reviewing = !example && at < progress.answers.length;
+  const fusion =
+    !example &&
+    !reviewing &&
+    !done &&
+    step.kind === 'translation' &&
+    view.factorSide;
+  const primary =
+    view.primary === 'Q' && step.kind === 'translation' ? 'P' : view.primary;
+  const factorAligned = primary === step.left;
   const column = Math.min(
     view.column,
     (step.left?.length ?? step.answer.length) - 1,
@@ -117,14 +136,13 @@ export default function ManualLesson({
     if (next !== progress) onChange(next);
   }
   function autoLetter() {
-    if (autoBusy || example || reviewing || done) return;
+    if (autoBusy || example || reviewing || done || handoff || fusion) return;
     setError('');
     if (computational && !unknown) {
       const aligned = {
         ...progress,
         primary: left!,
         other: right!,
-        factorSide: false,
       };
       pendingAuto.current = { output: exercise.output, progress: aligned };
       setAutoBusy(true);
@@ -139,7 +157,7 @@ export default function ManualLesson({
               tableOpen: true,
             }
           : progress;
-      const result = autoNextEntry(exercise, selected);
+      const result = finishTutorialReading(exercise, selected, target);
       onChange(result.progress);
       if (!result.correct)
         setError(
@@ -164,7 +182,7 @@ export default function ManualLesson({
     const timer = setTimeout(() => {
       pendingAuto.current = null;
       setAutoBusy(false);
-      const result = autoNextEntry(exercise, progress);
+      const result = finishTutorialReading(exercise, progress, target);
       onChange(result.progress);
       if (!result.correct)
         setError(
@@ -173,14 +191,20 @@ export default function ManualLesson({
       if (result.complete) onComplete();
     }, 650);
     return () => clearTimeout(timer);
-  }, [active, example, progress, exercise, onChange, onComplete]);
+  }, [active, example, progress, exercise, onChange, onComplete, target]);
   function goToAnswer() {
     field.current?.focus({ preventScroll: true });
     field.current?.scrollIntoView({ block: 'center' });
   }
   function leaveUnknown() {
     if (example || reviewing || done) return;
-    const result = keepUnknown(exercise, { ...progress, column });
+    const result = unknownRow
+      ? confirmTutorialRow(exercise, { ...progress, draft: step.answer })
+      : confirmPaperColumn(exercise, {
+          ...progress,
+          column,
+          draft: writeColumn(progress.draft, column, '?', step.answer.length),
+        });
     if (!result.correct) {
       setError(
         normalizeAnswer(progress.draft).length > step.answer.length
@@ -216,11 +240,11 @@ export default function ManualLesson({
     return () => cancelAnimationFrame(frame);
   }, [at, column, active, example, done, reviewing, guided, unknownTask]);
   function check(wholeRow = false) {
-    if (example || reviewing) return;
+    if (example || reviewing || done || handoff || fusion) return;
     const result =
       guided && !wholeRow
-        ? checkColumn(exercise, { ...progress, column })
-        : submitAnswer(exercise, progress);
+        ? confirmPaperColumn(exercise, { ...progress, column })
+        : confirmTutorialRow(exercise, progress);
     if (!result.correct) {
       if (guided && !wholeRow) {
         field.current?.focus({ preventScroll: true });
@@ -278,6 +302,24 @@ export default function ManualLesson({
     if (example) patch({ exampleCursor: next, column: 0 });
     else onChange(visitLesson(exercise, { ...progress, column: 0 }, next));
   }
+  function nextStage() {
+    onChange(
+      openNextStage(exercise, {
+        ...progress,
+        cursor: progress.answers.length,
+      }),
+    );
+  }
+  function fillStep() {
+    if (autoBusy || example || reviewing || done || handoff) return;
+    if (fusion) {
+      patch({ primary: step.left! });
+      return;
+    }
+    const result = autoStage(exercise, progress);
+    onChange(result.progress);
+    if (result.complete) onComplete();
+  }
   const completedCells = exercise.checksum
     ? []
     : exercise.steps.flatMap((item, i) =>
@@ -302,12 +344,18 @@ export default function ManualLesson({
             href={
               wheelData.sources.paper +
               '#page=' +
-              (exercise.verification ? 21 : guide.page)
+              (exercise.verification && step.kind !== 'lookup'
+                ? 21
+                : guide.page)
             }
             target="_blank"
             rel="noreferrer"
           >
-            Book p. {exercise.verification ? '14' : guide.printedPage} ↗
+            Book p.{' '}
+            {exercise.verification && step.kind !== 'lookup'
+              ? '14'
+              : guide.printedPage}{' '}
+            ↗
           </a>
         </div>
         {exercise.checksum && (
@@ -374,13 +422,15 @@ export default function ManualLesson({
                       : step.title}
               </h2>
               <p>
-                {startUpward
-                  ? 'All 13 cells in this row are pink on the paper worksheet. Leave them blank. Now start at the given bottom row, SECRETSHARE32, and work upward to find the missing characters.'
-                  : unknownRow
-                    ? 'The eleven characters you keep and the two you bring in are all unknown. Keep their places as a row of 13 question marks.'
-                    : unknownTask
-                      ? 'One of the two characters in this column is unknown, so its result is unknown too. Leave this pink cell blank, just as you would on paper, then continue.'
-                      : step.instruction}
+                {handoff && reviewing && at === progress.answers.length - 1
+                  ? 'Step complete. Review your answer, then choose Next before changing tools.'
+                  : startUpward
+                    ? 'All 13 cells in this row are pink on the paper worksheet. Leave them blank. Now start at the given bottom row, SECRETSHARE32, and work upward to find the missing characters.'
+                    : unknownRow
+                      ? 'The eleven characters you keep and the two you bring in are all unknown. Keep their places as a row of 13 question marks.'
+                      : unknownTask
+                        ? 'One of the two characters in this column is unknown, so its result is unknown too. Leave this pink cell blank, just as you would on paper, then continue.'
+                        : step.instruction}
               </p>
             </div>
             {unknownTask && (
@@ -457,7 +507,11 @@ export default function ManualLesson({
                 guided={{ primary: left!, other: right! }}
                 controls={false}
                 factorSide={view.factorSide}
-                onFactorSide={(factorSide) => patch({ factorSide })}
+                onFactorSide={(factorSide) => {
+                  if (example || reviewing || factorSide || factorAligned)
+                    patch({ factorSide });
+                }}
+                showFlip={example || reviewing}
               />
             </>
           ) : derivationFactor && !done ? (
@@ -583,6 +637,11 @@ export default function ManualLesson({
             <button className="text-button" onClick={() => visit(0)}>
               Review my steps
             </button>
+            {onContinue && (
+              <BookButton onClick={onContinue}>
+                {continueLabel || 'Next'}
+              </BookButton>
+            )}
             {!exercise.checksum && target === 'S' && (
               <SecretResult
                 secret={exercise.output}
@@ -743,9 +802,11 @@ export default function ManualLesson({
                 className="answer-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (reviewing)
-                    visit(Math.min(at + 1, progress.answers.length));
-                  else check();
+                  if (reviewing) {
+                    if (handoff && at + 1 === progress.answers.length)
+                      nextStage();
+                    else visit(Math.min(at + 1, progress.answers.length));
+                  } else check();
                 }}
               >
                 <label htmlFor={answerId}>
@@ -765,7 +826,7 @@ export default function ManualLesson({
                   ref={field}
                   id={answerId}
                   value={value}
-                  readOnly={reviewing}
+                  readOnly={reviewing || fusion}
                   onFocus={(event) => {
                     if (guided && !reviewing) event.currentTarget.select();
                   }}
@@ -803,7 +864,7 @@ export default function ManualLesson({
                     {error}
                   </p>
                 )}
-                <BookButton type="submit">
+                <BookButton type="submit" disabled={fusion}>
                   {reviewing
                     ? 'Next checked step'
                     : guided
@@ -835,7 +896,11 @@ export default function ManualLesson({
                         }
                       }}
                     />
-                    <BookButton type="button" onClick={() => check(true)}>
+                    <BookButton
+                      type="button"
+                      disabled={fusion}
+                      onClick={() => check(true)}
+                    >
                       Check whole row <ArrowRight size={17} />
                     </BookButton>
                   </details>
@@ -847,17 +912,43 @@ export default function ManualLesson({
                 <button
                   type="button"
                   className="secondary-button"
-                  disabled={autoBusy}
+                  disabled={autoBusy || fusion || Boolean(handoff)}
                   onClick={autoLetter}
                 >
-                  Auto-complete next letter
+                  Auto-fill next letter
                 </button>
                 <p>
                   {autoBusy
                     ? 'Turning the wheel, then recording the next letter…'
-                    : 'Fills one letter. Use Auto-complete section above to fill the rest of the worksheet.'}
+                    : fusion
+                      ? 'Set the factor in the fusion-side handle, then choose Next to flip. No characters are recorded by setting it.'
+                      : 'Fills one letter. Auto-fill this step completes only the current paper operation, then waits for Next.'}
                 </p>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={autoBusy || Boolean(handoff)}
+                  onClick={fillStep}
+                >
+                  {fusion ? 'Auto-set factor' : 'Auto-fill this step'}
+                </button>
               </div>
+            )}
+            {!example && (
+              <BookButton
+                disabled={autoBusy || (!handoff && !(fusion && factorAligned))}
+                onClick={() => {
+                  if (handoff) nextStage();
+                  else if (fusion && factorAligned)
+                    patch({ factorSide: false });
+                }}
+              >
+                {handoff
+                  ? 'Next: ' + workbookStage(exercise, handoff.cursor)!.tool
+                  : fusion
+                    ? 'Next: Flip to translation'
+                    : 'Next step'}
+              </BookButton>
             )}
             <div className="checksum-actions">
               <button

@@ -716,7 +716,9 @@ export default function TutorialLesson(props: Props) {
             href={
               wheelData.sources.paper +
               '#page=' +
-              (exercise.verification ? 21 : guide.page)
+              (exercise.verification && step.kind !== 'lookup'
+                ? 21
+                : guide.page)
             }
             target="_blank"
             rel="noreferrer"

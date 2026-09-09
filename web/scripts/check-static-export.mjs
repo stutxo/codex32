@@ -77,12 +77,22 @@ assert.equal(
   hash(wasm[0]),
   hash(join(project, 'lib/wasm/codex32_wasm_bg.wasm')),
 );
-assert.equal(
-  files.filter((file) => file.includes('/art/') && file.endsWith('.png'))
-    .length,
-  11,
-);
-assert.ok(existsSync(join(output, 'art/dice-tree.svg')), 'Original dice tree must be exported');
+let artworkCount = 0;
+for (const name of ['provenance.json', 'printed-ink-provenance.json']) {
+  const manifest = JSON.parse(
+    readFileSync(join(project, 'public/art', name), 'utf8'),
+  );
+  for (const asset of manifest.assets) {
+    const path = join(output, 'art', asset.file);
+    assert.ok(existsSync(path), `Missing original artwork: ${asset.file}`);
+    assert.equal(
+      hash(path),
+      asset.sha256,
+      `Original artwork changed: ${asset.file}`,
+    );
+    artworkCount++;
+  }
+}
 console.log(
-  `Static export verified at ${base || '/'}: 3 routes, ${references} local references, 12 artwork assets, tested WASM.`,
+  `Static export verified at ${base || '/'}: 3 routes, ${references} local references, ${artworkCount} original artwork assets, tested WASM.`,
 );

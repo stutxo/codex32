@@ -6,7 +6,7 @@ import { publicAsset } from '@/lib/public-asset';
 // passed to this component: its printed characters cannot change on a turn.
 const PrintedResults = memo(function PrintedResults() {
   return (
-    <g className="addition-printed-results" aria-hidden="true">
+    <g className="addition-printed-results" aria-hidden="true" opacity="0">
       {additionPrinting.map((setting) => (
         <g key={setting.primary} transform={`rotate(${setting.angle})`}>
           {setting.windows.map((window) => (
@@ -60,7 +60,7 @@ export default function AdditionDisc({
         </mask>
       </defs>
       <g className="addition-bottom-disc">
-        <circle r="268" fill="#fffdf5" stroke="#29251f" strokeWidth="0.5" />
+        <circle r="268" fill="#fffdf5" stroke="#29251f" strokeWidth="0.2" />
         <PrintedResults />
         {additionPrinting.map((setting) => (
           <g
@@ -85,11 +85,32 @@ export default function AdditionDisc({
               x="0"
               y={-40 * Math.sqrt(38)}
               className="addition-outer-letter"
+              opacity="0"
             >
               {setting.primary}
             </text>
           </g>
         ))}
+        <image
+          className="original-printed-ink"
+          href={publicAsset('/art/addition-bottom-glyphs.svg')}
+          x="-300"
+          y="-300"
+          width="600"
+          height="600"
+          aria-hidden="true"
+          pointerEvents="none"
+        />
+        <image
+          className="original-printed-ink"
+          href={publicAsset('/art/addition-outer-titles.svg')}
+          x="-300"
+          y="-300"
+          width="600"
+          height="600"
+          aria-hidden="true"
+          pointerEvents="none"
+        />
       </g>
       <g className="addition-top-disc" transform={`rotate(${angle})`}>
         <g mask={`url(#${id}-windows)`}>
@@ -110,7 +131,7 @@ export default function AdditionDisc({
             height="480"
             aria-hidden="true"
           />
-          <circle r="240" fill="none" stroke="#29251f" strokeWidth="0.5" />
+          <circle r="240" fill="none" stroke="#29251f" strokeWidth="0.2" />
           <path d="M 0 -240 L 10 -220 L -10 -220 Z" fill="#111" />
           {additionWindows.map((window) => (
             <g
@@ -133,9 +154,9 @@ export default function AdditionDisc({
                     : 'white'
                 }
                 stroke="#111"
-                strokeWidth="0.5"
+                strokeWidth="0.4"
               />
-              <text x={window.x - 22} y={window.y + 3}>
+              <text x={window.x - 22} y={window.y + 3} opacity="0">
                 {window.letter}
               </text>
               <path
@@ -143,9 +164,20 @@ export default function AdditionDisc({
                 fill="none"
                 stroke="#111"
                 strokeWidth="0.6"
+                opacity="0"
               />
             </g>
           ))}
+          <image
+            className="original-printed-ink"
+            href={publicAsset('/art/addition-top-glyphs.svg')}
+            x="-300"
+            y="-300"
+            width="600"
+            height="600"
+            aria-hidden="true"
+            pointerEvents="none"
+          />
         </g>
         {additionWindows.map((window) => (
           <rect
@@ -161,7 +193,7 @@ export default function AdditionDisc({
                 : '#111'
             }
             strokeWidth={
-              (guide ? guide.other : other) === window.letter ? 1.5 : 0.5
+              (guide ? guide.other : other) === window.letter ? 1.5 : 0.4
             }
             className="addition-window"
             data-window={window.letter}

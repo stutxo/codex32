@@ -27,6 +27,11 @@ export default function SecretResult({
         <b>S</b> string is what a wallet imports.
       </p>
       <code className="secret-string">{grouped(secret)}</code>
+      <p>
+        The paper calculation ends with this S share. The wallet instructions
+        and address previews below are digital extras, not steps performed by
+        the book’s wheels.
+      </p>
       <BookButton
         onClick={async () => {
           try {

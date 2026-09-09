@@ -230,8 +230,8 @@ export function translationLesson(
 }
 export type TranslationLesson = ReturnType<typeof translationLesson>;
 
-// The physical Recovery wheel targets S. Relabeling its fixed scale gives the
-// same two-point derivation operation for D; this is disclosed in the interface.
+// The printed Recovery wheel targets S. Other targets are retained only for
+// independent mathematical tests; the book workshop uses its table to derive D.
 export function recoveryOrder(engine: Engine, target: string) {
   return data.recoveryOrder
     .split('')

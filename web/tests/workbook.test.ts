@@ -151,21 +151,21 @@ await test('the hands-on checksum includes table lookup, shifting, addition and 
     [a, fresh.shares.A],
     [c, fresh.shares.C],
   ] as const) {
-    assert.equal(exercise.steps.length, 98);
-    assert.equal(new Set(exercise.steps.map((step) => step.id)).size, 98);
+    assert.equal(exercise.steps.length, 70);
+    assert.equal(new Set(exercise.steps.map((step) => step.id)).size, 70);
     assert.equal(
       exercise.steps.filter((step) => step.kind === 'lookup').length,
       16,
     );
     assert.equal(
       exercise.steps.filter((step) => step.kind === 'shift').length,
-      32,
+      22,
     );
     assert.equal(
       exercise.steps.filter(
         (step) => step.direction === 'up' && step.kind === 'copy',
       ).length,
-      16,
+      7,
     );
     const complete = solve(exercise);
     assert.equal(complete.answers.length, exercise.steps.length);
@@ -175,10 +175,11 @@ await test('the hands-on checksum includes table lookup, shifting, addition and 
     const upward = exercise.steps.filter((step) => step.direction === 'up');
     for (let i = 0; i < upward.length; i += 3) {
       assert.equal(upward[i + 1].answer, upward[i].answer.slice(-2));
-      assert.equal(
-        upward[i + 2].answer,
-        upward[i + 2].following + upward[i].answer.slice(0, 11),
-      );
+      if (upward[i + 2])
+        assert.equal(
+          upward[i + 2].answer,
+          upward[i + 2].following + upward[i].answer.slice(0, 11),
+        );
       if (i + 3 < upward.length)
         assert.equal(upward[i + 3].left, upward[i + 2].answer);
     }

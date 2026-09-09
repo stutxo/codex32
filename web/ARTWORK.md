@@ -6,6 +6,36 @@ cut-out windows and handles are separate SVG paper layers; all printed marks rot
 with their own sheet. BIP93/WASM independently checks every reading. Selection
 highlights, the enlarged window and keyboard controls are screen aids.
 
+## Printed wheel ink
+
+The visible lettering is now the published PDF's original glyph outlines, not
+substitute system fonts. Sixteen transparent SVG layers restore the 1,024 addition
+results, all outer/window labels and double-arrows, the recovery/translation/fusion
+scales, repeated outer titles, center titles, recovery's “share to translate”
+marking and the translation handle's Q↔Q reminder. The potion artwork has the
+original 45° orientation relative to its handle. Fixed ink stays on the bottom
+disc; top ink rotates with its illustration, handle and windows.
+
+These layers come from PDF pages 29, 31, 33, 35 and 37, normalized into the
+original centered disc coordinates. They contain only vector paths: no generated
+art, external font references or tracing. The published labels “Fusion” and
+“Translation” take precedence over the older source branch's title text.
+Generated character labels remain transparent hit targets/accessibility text;
+the visible marks are the PDF paths. The actual paper cut geometry and positions
+are retained, with digital selection highlights and a screen rivet.
+
+[printed-ink-provenance.json](public/art/printed-ink-provenance.json) records exact
+page groups, coordinate transforms, glyph counts and output hashes. Regenerate
+with Poppler 26.06.0 and Python's standard library:
+
+```sh
+python3 scripts/extract-printed-ink.py --pdf /path/to/2023-03-07--color.pdf --output public/art
+```
+
+Pass `--pdftocairo /path/to/pdftocairo` if needed. The script verifies the PDF
+hash and Poppler version before extracting into temporary page exports. Tests and
+the export check verify every original image and ink layer against its manifest.
+
 Sources:
 
 - [new-complete branch](https://github.com/apoelstra/codex32/tree/new-complete), pinned at `8ae1268e40bcc37bb84be21b7a33ff2c34b1ac32`.

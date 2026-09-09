@@ -12,6 +12,7 @@ import {
   emptyLesson,
   shareExercise,
   restoreLesson,
+  migrateLegacyLesson,
 } from '../lib/workbook.ts';
 import {
   confirmTutorialReading,
@@ -29,7 +30,12 @@ import {
 const pointerHookUrl =
   'data:text/javascript;base64,' +
   Buffer.from(`
-  let refs = [], effects = [], refIndex = 0, effectIndex = 0, pending = [];
+  let refs = [], effects = [], states = [], stateIndex = 0, refIndex = 0, effectIndex = 0, pending = [];
+  export function useState(initial) {
+    const i = stateIndex++;
+    if (!(i in states)) states[i] = typeof initial === 'function' ? initial() : initial;
+    return [states[i], value => { states[i] = typeof value === 'function' ? value(states[i]) : value; }];
+  }
   export function useRef(value) { return refs[refIndex++] ??= { current: value }; }
   export function useId() { return 'pointer-test'; }
   export function useEffect(run, deps) {
@@ -37,11 +43,11 @@ const pointerHookUrl =
     if (!deps || !prev || deps.some((value, j) => !Object.is(value, prev.deps[j])))
       pending.push(() => { prev?.cleanup?.(); effects[i] = { deps, cleanup: run() }; });
   }
-  export function begin() { refIndex = 0; effectIndex = 0; }
+  export function begin() { refIndex = 0; effectIndex = 0; stateIndex = 0; }
   export function commit() { pending.splice(0).forEach(run => run()); }
   export function unmount() {
     effects.forEach(effect => effect?.cleanup?.());
-    refs = []; effects = []; pending = [];
+    refs = []; effects = []; states = []; pending = [];
   }
 `).toString('base64');
 const modules = new Map<string, Promise<string>>();
@@ -338,6 +344,129 @@ function activeToolbar(markup: string, className: string) {
   )?.[0];
   return Boolean(toolbar && !toolbar.includes('inert=""'));
 }
+
+await test('actual paper controls wait for Next and flip, and one fill cannot consume migrated later rows', async (t) => {
+  const Manual = (
+    await import(
+      await componentUrl(
+        new URL(
+          '../app/workshop/manual-lesson.tsx?pointer-test',
+          import.meta.url,
+        ),
+      )
+    )
+  ).default;
+  const hooks = await import(pointerHookUrl);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const frame = globalThis.requestAnimationFrame;
+  const cancel = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = () => 0;
+  globalThis.cancelAnimationFrame = () => {};
+  const exercise = shareExercise(engine, session, ['A', 'C'], 'D');
+  const props = {
+    engine,
+    exercise,
+    session,
+    target: 'D',
+    example: false,
+    active: true,
+    progress: autoStage(exercise, emptyLesson()).progress,
+    onChange(value: ReturnType<typeof emptyLesson>) {
+      props.progress = value;
+    },
+    onComplete: noop,
+  };
+  type Tree = {
+    props?: { children?: unknown; onClick?: () => void; disabled?: boolean };
+  };
+  const label = (node: unknown): string =>
+    Array.isArray(node)
+      ? node.map(label).join('')
+      : typeof node === 'string'
+        ? node
+        : typeof node === 'object' && node
+          ? label((node as Tree).props?.children)
+          : '';
+  function button(node: unknown, text: string): Tree | undefined {
+    if (Array.isArray(node))
+      return node.map((child) => button(child, text)).find(Boolean);
+    if (!node || typeof node !== 'object') return undefined;
+    const tree = node as Tree;
+    if (tree.props?.onClick && label(tree.props.children) === text) return tree;
+    return button(tree.props?.children, text);
+  }
+  function render() {
+    hooks.begin();
+    const tree = Manual(props);
+    hooks.commit();
+    return tree;
+  }
+  try {
+    let tree = render();
+    assert.ok(instrumentHandoff(exercise, props.progress));
+    assert.equal(button(tree, 'Auto-fill next letter'), undefined);
+    button(tree, 'Return to my current step')!.props!.onClick!();
+    tree = render();
+    assert.ok(
+      instrumentHandoff(exercise, props.progress),
+      'Review navigation is not Next',
+    );
+    button(tree, 'Next: Fusion side → Translation side')!.props!.onClick!();
+    tree = render();
+    const fill = button(tree, 'Auto-fill next letter')!;
+    assert.equal(fill.props!.disabled, true);
+    fill.props!.onClick!(); // Handler is guarded even if called directly.
+    assert.equal(props.progress.answers.length, 2);
+    button(tree, 'Auto-set factor')!.props!.onClick!();
+    tree = render();
+    assert.equal(props.progress.factorSide, true);
+    assert.equal(props.progress.answers.length, 2);
+    button(tree, 'Next: Flip to translation')!.props!.onClick!();
+    tree = render();
+    assert.equal(props.progress.factorSide, false);
+    assert.equal(props.progress.answers.length, 2);
+    hooks.unmount();
+
+    // A real v1 save used interleaved translate-A/translate-C/add entries.
+    const oldSteps = exercise.steps.slice(0, 2);
+    for (let i = 0; i < 45; i++)
+      for (const suffix of ['translate-0', 'translate-1', 'add'])
+        oldSteps.push(
+          exercise.steps.find(
+            (step) => step.id === 'column-' + i + '-' + suffix,
+          )!,
+        );
+    const migrated = migrateLegacyLesson(exercise, {
+      ...emptyLesson(),
+      answers: oldSteps.slice(0, 134).map((step) => step.answer),
+      cursor: 134,
+    });
+    assert.equal(migrated.answers.length, 46);
+    props.progress = {
+      ...migrated,
+      primary: exercise.steps[46].left!,
+      factorSide: false,
+    };
+    tree = render();
+    button(tree, 'Auto-fill next letter')!.props!.onClick!();
+    render();
+    t.mock.timers.tick(650);
+    assert.equal(
+      props.progress.answers.length,
+      47,
+      'Only the last letter of the first share is recorded',
+    );
+    assert.ok(instrumentHandoff(exercise, props.progress));
+    assert.ok(
+      Object.keys(props.progress.deferredAnswers).length > 0,
+      'Later checked work is preserved, not silently accepted',
+    );
+  } finally {
+    hooks.unmount();
+    globalThis.requestAnimationFrame = frame;
+    globalThis.cancelAnimationFrame = cancel;
+  }
+});
 
 await test('changing guidance reserves every message while exposing only the current one', async () => {
   const StableMessage = (

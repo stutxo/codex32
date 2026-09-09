@@ -26,10 +26,23 @@ export default function RingDisc({
   const glyph = (letter: string) =>
     kind === 'fusion' ? symbol(letter) : letter;
   const art = recovery ? 'wheel-lock' : kind === 'fusion' ? 'potion' : 'sun';
+  const ink = (part: string) => (
+    <image
+      className="original-printed-ink"
+      href={publicAsset(`/art/${kind}-${part}.svg`)}
+      x="-240"
+      y="-240"
+      width="480"
+      height="480"
+      aria-hidden="true"
+      pointerEvents="none"
+    />
+  );
   return (
     <>
       <g className="ring-bottom-disc">
-        <circle r="200" fill="#fffdf5" stroke="#29251f" />
+        <circle r="200" fill="#fffdf5" stroke="#29251f" strokeWidth="0.2" />
+        <circle r={radius} fill="none" stroke="#29251f" strokeWidth="1.4" />
         {order.split('').map((letter, i) => (
           <g
             key={letter}
@@ -69,12 +82,14 @@ export default function RingDisc({
                   : 'transparent'
               }
             />
-            <text x="0" y="-179.6" className="ring-printed-letter">
+            <text x="0" y="-179.6" className="ring-printed-letter" opacity="0">
               {glyph(letter)}
             </text>
             {recovery && <path d="M 0 -170 l -3 -6 h 6 Z" fill="#111" />}
           </g>
         ))}
+        {ink('outer-titles')}
+        {ink('bottom-glyphs')}
       </g>
       <g className="ring-top-disc" transform={`rotate(${angle})`}>
         {/* Even-odd fill leaves a real window through the handle. */}
@@ -96,6 +111,7 @@ export default function RingDisc({
           y={-artRadius}
           width={artRadius * 2}
           height={artRadius * 2}
+          transform={kind === 'fusion' ? 'rotate(45)' : undefined}
           aria-hidden="true"
         />
         {order.split('').map((letter, i) => {
@@ -129,13 +145,20 @@ export default function RingDisc({
                     : 'transparent'
                 }
               />
-              <text x="0" y="-155.6" className="ring-printed-letter">
+              <text
+                x="0"
+                y="-155.6"
+                className="ring-printed-letter"
+                opacity="0"
+              >
                 {recovery ? (read ? symbol(read) : '') : glyph(read!)}
               </text>
               {!recovery && <path d="M 0 -176 l -3 6 h 6 Z" fill="#111" />}
             </g>
           );
         })}
+        {ink('top-annotations')}
+        {ink('top-glyphs')}
         {kind === 'translation' && (
           <g
             data-wheel-mark={
@@ -149,11 +172,13 @@ export default function RingDisc({
               x="0"
               y="-202"
               className="ring-zero-reminder"
+              opacity="0"
               data-guided-active={guide ? guide.other === 'Q' : undefined}
               onClick={() => onOther('Q')}
             >
               Q↔Q
             </text>
+            {ink('zero-reminder')}
           </g>
         )}
       </g>

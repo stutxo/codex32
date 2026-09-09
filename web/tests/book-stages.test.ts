@@ -118,6 +118,40 @@ await test('single-entry autofill does not accept any deferred later letters', (
   );
 });
 
+await test('checksum generation stops at the last pink square and preserves older longer saves', () => {
+  for (const index of ['A', 'C'] as const) {
+    const exercise = checksumExercise(engine, session.shares[index]);
+    assert.equal(exercise.steps.length, 70);
+    assert.equal(exercise.steps.at(-1)!.id, 'up-6-copy');
+    const answers = exercise.steps.map((step) => step.answer);
+    const solved = restoreLesson(exercise, {
+      ...emptyLesson(),
+      answers,
+      cursor: 70,
+    });
+    assert.equal(visibleShare(exercise, solved), exercise.output);
+    const old = restoreLesson(exercise, {
+      ...emptyLesson(),
+      answers: [...answers, ...Array(28).fill('older redundant check')],
+      cursor: 98,
+      exampleCursor: 97,
+      draft: 'old final-row draft',
+    });
+    assert.deepEqual(old.answers, answers);
+    assert.equal(old.cursor, 70);
+    assert.equal(old.exampleCursor, 69);
+    assert.equal(old.draft, '');
+    const partial = restoreLesson(exercise, {
+      ...emptyLesson(),
+      answers: answers.slice(0, 68),
+      cursor: 68,
+      draft: 'MYDRAFT',
+    });
+    assert.equal(partial.cursor, 68);
+    assert.equal(partial.draft, 'MYDRAFT');
+  }
+});
+
 await test('a final out-of-order column keeps the actual confirmed wheel reading for review', () => {
   const exercise = checksumExercise(engine, session.shares.A);
   const step = exercise.steps[1];

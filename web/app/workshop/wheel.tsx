@@ -88,6 +88,10 @@ export default function Wheel({
     disabled?: boolean;
   };
 }) {
+  if (kind === 'recovery' && target !== 'S')
+    throw new Error(
+      'The printed recovery wheel targets S. Use the derivation table for D.',
+    );
   const id = useId();
   const svg = useRef<SVGSVGElement>(null);
   const adjustButton = useRef<HTMLButtonElement>(null);
@@ -458,9 +462,7 @@ export default function Wheel({
           : kind === 'addition'
             ? 'Point the dragon’s arrow at the top-row character on the fixed outer disc. Find the bottom-row character printed on the dragon; read through its square window. The ink stays fixed on each sheet as the top sheet turns.'
             : kind === 'recovery'
-              ? target === 'S'
-                ? 'Point the handle at the share being translated; read the other share’s index. Their roles matter.'
-                : 'For deriving D, this digital adaptation relabels the paper recovery ring to target D.'
+              ? 'Point the handle at the share being translated; read the other share’s index. Their roles matter.'
               : kind === 'fusion'
                 ? 'The fusion face combines factors. A 2-share recovery uses one factor per share; fusion is useful for larger thresholds.'
                 : factorSide

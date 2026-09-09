@@ -22,9 +22,11 @@ cards share the main page in a workbench tab. Previous `/workshop` and `/workben
 URLs redirect to the corresponding view on the main page.
 The workshop puts a large, draggable volvelle beside the learner's answer sheet,
 with keyboard controls, character-by-character derivation/recovery, and the paper's
-48-character checksum worksheet. Each checksum has 98 checked entries: the final
-row, initial addition, 16 lookup/shift/add rounds, and 16 upward addition/copy/reverse-shift
-rounds. Deriving D or recovering S requires both factors and the two translations
+48-character checksum worksheet. Each checksum has 70 checked entries: the final
+row, initial addition, 16 lookup/shift/add rounds, and seven upward additions/copies
+with six reverse shifts. It stops when the last pink square is filled, as the book
+instructs; the underlying engine still backsolves all rows as a consistency check.
+Deriving D or recovering S requires both factors and the two translations
 and addition for each of the 45 characters after MS1. Incorrect or incomplete
 answers remain editable and do not advance the worksheet. The worked-example
 toggle reveals answers with separate navigation and wheel settings; viewing an
@@ -64,7 +66,8 @@ one sheet. An enlarged window repeats the same SVG layers for small screens.
 Recovery uses the fixed S ring and a rotating printed symbol disc. Translation
 and Fusion are opposite faces of one instrument: flipping preserves the factor
 and reverses the apparent rotation. Q has no factor slot; input Q follows the
-printed Q ↔ Q rule. Alphabet ink uses Courier, as in the source.
+printed Q ↔ Q rule. The visible lettering, symbols and titles use the original
+published PDF glyph paths, including all 1,024 fixed addition results.
 
 In every guided wheel step (checksums, verification, derivation and recovery),
 turning the wheel fills a live, read-only character
@@ -82,6 +85,10 @@ not a substitute for the book’s verification worksheet. Older computer-checked
 saves retain their calculations and resume at any missing verification step.
 Copying the given SECRETSHARE32 bottom row is explicit for new worksheets;
 existing checked endpoint entries are retained.
+The detailed paper view has the same explicit Next and set/flip boundaries.
+One-letter helpers cannot consume later saved rows, including migrated workbooks.
+Older checksum workbooks retain their checked answers through the last required
+entry; the now-redundant upward rows are no longer required for completion.
 
 Practice work is saved automatically in this browser's localStorage, under
 `codex32.practice-workbooks.v1`. It includes initial A/C shares, unfinished dice

@@ -118,7 +118,7 @@ export function checksumExercise(
       },
     );
   });
-  sheet.backward.forEach((row, i) => {
+  for (const [i, row] of sheet.backward.entries()) {
     steps.push(
       {
         id: 'up-' + i + '-add',
@@ -161,7 +161,13 @@ export function checksumExercise(
         direction: 'up',
       },
     );
-  });
+    // Book p.13, generation step 6: stop once the pink squares are filled.
+    // Keep the complete backsolve in checksumWorksheet for consistency checks.
+    if (!sheet.forward[row.forwardStep - 1].before.includes('?')) {
+      steps.pop(); // No reverse shift after the last recovered pair.
+      break;
+    }
+  }
   return {
     title:
       'Share ' +
@@ -664,9 +670,11 @@ export function restoreLesson(
     exampleWheel: restoreWheel(raw.exampleWheel),
     answers,
     draft:
-      answers.length < submitted.length
-        ? text(submitted[answers.length], 64)
-        : text(raw.draft, 64),
+      answers.length === exercise.steps.length
+        ? ''
+        : answers.length < submitted.length
+          ? text(submitted[answers.length], 64)
+          : text(raw.draft, 64),
     cursor: integer(raw.cursor, answers.length),
     exampleCursor: integer(raw.exampleCursor, exercise.steps.length - 1),
   };

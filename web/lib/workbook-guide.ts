@@ -56,7 +56,7 @@ export function selectOperand(
 export function autoNextEntry(
   exercise: Exercise,
   progress: LessonProgress,
-  stopBefore = exercise.steps.length,
+  stopBefore = progress.cursor + 1,
 ) {
   const step = exercise.steps[progress.cursor];
   if (
@@ -258,11 +258,22 @@ export function confirmTutorialRow(
   return advanceTutorialReading(
     exercise,
     progress,
-    submitAnswer(
-      exercise,
-      progress,
-      workbookStage(exercise, progress.cursor)!.end,
-    ),
+    submitAnswer(exercise, progress, progress.cursor + 1),
+  );
+}
+
+// The detailed worksheet accepts handwriting too, but has the same instrument
+// boundaries as the guided view. One checked cell cannot consume later saved rows.
+export function confirmPaperColumn(
+  exercise: Exercise,
+  progress: LessonProgress,
+) {
+  if (!stageReady(exercise, progress))
+    return { correct: false, complete: false, progress };
+  return advanceTutorialReading(
+    exercise,
+    progress,
+    checkColumn(exercise, progress, progress.cursor + 1),
   );
 }
 

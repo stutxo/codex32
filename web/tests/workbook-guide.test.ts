@@ -209,10 +209,10 @@ await test('paper guidance identifies header rows, the checksum staircase and th
   );
   assert.equal(
     stepGuide(
-      exercise.steps.find((step) => step.id === 'up-15-shift')!,
+      exercise.steps.find((step) => step.id === 'up-6-copy')!,
       true,
     ).position,
-    'Row 1 of 16',
+    'Row 10 of 16',
   );
   const factor = { ...lookup, kind: 'recovery' as const };
   assert.equal(stepGuide(factor, false, 'D').page, 16);
